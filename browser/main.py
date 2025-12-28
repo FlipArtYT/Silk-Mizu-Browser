@@ -6,12 +6,15 @@ from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
+    QGridLayout,
+    QFormLayout,
     QPushButton,
     QLineEdit,
     QComboBox,
     QCheckBox,
     QDialog,
     QLabel,
+    QDialogButtonBox
 )
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -19,7 +22,7 @@ from PyQt6.QtGui import QPixmap, QIcon, QAction
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 VERSION_NUMBER = "0.0.1"
-start_page = "http://theoldnet.com"
+start_page = "https://silk-project.github.io/"
 
 class WebEngine():
     def __init__(self, window, url_bar, prevbtn, nextbtn):
@@ -101,10 +104,16 @@ class BrowserWindow(QMainWindow):
 
         fileMenu = menu_bar.addMenu("&File")
         editMenu = menu_bar.addMenu("&Edit")
+        settingsMenu = menu_bar.addMenu("&Settings")
         helpMenu = menu_bar.addMenu("&Help")
 
         # File Menu
         # Edit Menu
+        # Settings Menu
+        settingsAction = settingsMenu.addAction("Program Settings")
+        settingsAction.triggered.connect(self.settings_dialog)
+        settingsMenu.addAction(settingsAction)
+
         # Help Menu
         aboutAction = helpMenu.addAction("About")
         aboutAction.triggered.connect(self.about_dialog)
@@ -124,19 +133,44 @@ class BrowserWindow(QMainWindow):
 
     def request_next_page(self):
         self.web_engine.next_page()
+    
+    def settings_dialog(self):
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Settings")
+        dlg.setFixedSize(480, 360)
+
+        layout = QGridLayout()
+        settings_layout = QFormLayout()
+
+        start_page_lineedit = QLineEdit()
+        start_page_lineedit.setText(start_page)
+        start_page_lineedit.setMinimumWidth(200)
+        settings_layout.addRow("Start Page: ", start_page_lineedit)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(dlg.accept)
+        button_box.rejected.connect(dlg.reject)
+
+        layout.addLayout(settings_layout, 0, 0)
+        layout.addWidget(button_box, 1, 1)
+
+        dlg.setLayout(layout)
+
+        if dlg.exec():
+            print("Save")
+        
 
     def about_dialog(self):
         dlg = QDialog(self)
         dlg.setWindowTitle("About")
         dlg_layout = QVBoxLayout()
-        dlg.setStyleSheet("color: white;")
         dlg.setFixedSize(240, 270)
 
         logoLabel = QLabel(self)
-        logoLabel.setFixedSize(128, 128)
-        logoLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logoLabel.setFixedSize(150, 150)
         logoLabel.setScaledContents(True)
-        logo_path = os.path.join(SCRIPT_DIR, "assets", "svs.png")
+        logo_path = os.path.join(SCRIPT_DIR, "assets", "mizu.png")
+        
         if os.path.exists(logo_path):
             logoLabel.setPixmap(QPixmap(logo_path))
 
@@ -149,7 +183,7 @@ class BrowserWindow(QMainWindow):
         about_label = QLabel(f"Version: {VERSION_NUMBER}\nSilk Project 2025")
         about_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        dlg_layout.addWidget(logoLabel)
+        dlg_layout.addWidget(logoLabel, alignment=Qt.AlignmentFlag.AlignCenter)
         dlg_layout.addWidget(about_title)
         dlg_layout.addWidget(about_description)
         dlg_layout.addWidget(about_label)
