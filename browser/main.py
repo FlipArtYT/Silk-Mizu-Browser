@@ -162,6 +162,10 @@ class BrowserWindow(QMainWindow):
         settingsMenu.addAction(settingsAction)
 
         # Help Menu
+        documentationAction = QAction("Project Page", self)
+        documentationAction.triggered.connect(lambda: self.web_engine.load_page("https://github.com/FlipArtYT/Silk-Mizu-Browser/"))
+        helpMenu.addAction(documentationAction)
+
         aboutAction = helpMenu.addAction("About")
         aboutAction.triggered.connect(self.about_dialog)
         helpMenu.addAction(aboutAction)
@@ -189,6 +193,11 @@ class BrowserWindow(QMainWindow):
         layout = QGridLayout()
         settings_layout = QFormLayout()
 
+        title_label = QLabel("Browser Settings")
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_label.setStyleSheet("font-size: 20px; font-weight: bold; padding: 20px")
+        settings_layout.addRow(title_label)
+
         start_page_lineedit = QLineEdit()
         start_page_lineedit.setText(start_page)
         start_page_lineedit.setMinimumWidth(200)
@@ -203,7 +212,7 @@ class BrowserWindow(QMainWindow):
         button_box.accepted.connect(dlg.accept)
         button_box.rejected.connect(dlg.reject)
 
-        layout.addLayout(settings_layout, 0, 0)
+        layout.addLayout(settings_layout, 0, 0, 0, 2)
         layout.addWidget(button_box, 1, 1)
 
         dlg.setLayout(layout)
