@@ -1,0 +1,165 @@
+import sys
+import os
+from PyQt6.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QPushButton,
+    QLineEdit,
+    QComboBox,
+    QCheckBox,
+    QDialog,
+    QLabel,
+)
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtGui import QPixmap, QIcon, QAction
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+VERSION_NUMBER = "0.0.1"
+start_page = "http://theoldnet.com"
+
+class WebEngine():
+    def __init__(self, window, url_bar, prevbtn, nextbtn):
+        self.window = window
+        self.url_bar = url_bar
+        self.prevbtn = prevbtn
+        self.nextbtn = nextbtn
+
+        self.init_engine()
+    
+    def init_engine(self):
+        self.load_page(start_page)
+        self.update_nav_btn_status()
+    
+    def load_page(self, url):
+        self.window.setUrl(QUrl(url))
+        self.url_bar.setText(url)
+        self.update_nav_btn_status()
+          
+    def update_url_bar(self):
+        url = self.window.url().toString()
+        self.url_bar.setText(url)
+        self.update_nav_btn_status()
+    
+    def update_nav_btn_status(self):
+        # Activate / Deactivate Back and Forward Buttons
+        self.prevbtn.setEnabled(True if self.window.history().canGoBack() == True else False)
+        self.nextbtn.setEnabled(True if self.window.history().canGoForward() == True else False)
+    
+    def back_page(self):
+        self.window.history().back()
+
+    def next_page(self):
+        self.window.history().forward()
+
+class BrowserWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("Silk Mizu")
+        self.setMinimumSize(960, 720)
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QVBoxLayout()
+        controls_layout = QHBoxLayout()
+        layout.addLayout(controls_layout)
+
+        # Browser main controls
+        self.prev_page_btn = QPushButton("<")
+        self.prev_page_btn.setStyleSheet("padding: 10px;")
+        self.prev_page_btn.clicked.connect(self.request_back_page)
+        controls_layout.addWidget(self.prev_page_btn)
+
+        self.next_page_btn = QPushButton(">")
+        self.next_page_btn.setStyleSheet("padding: 10px;")
+        self.next_page_btn.clicked.connect(self.request_next_page)
+        controls_layout.addWidget(self.next_page_btn)
+
+        self.url_bar = QLineEdit()
+        self.url_bar.setStyleSheet("padding: 10px;")
+        self.url_bar.clearFocus()
+        self.url_bar.returnPressed.connect(self.request_load_page)
+        controls_layout.addWidget(self.url_bar)
+
+        self.load_btn = QPushButton("Load")
+        self.load_btn.setStyleSheet("padding: 10px;")
+        self.load_btn.clicked.connect(self.request_load_page)
+        controls_layout.addWidget(self.load_btn)
+
+        # Web Engine
+        self.web_widget = QWebEngineView()
+        self.web_engine = WebEngine(self.web_widget, self.url_bar, self.prev_page_btn, self.next_page_btn)
+        self.web_widget.urlChanged.connect(self.web_engine.update_url_bar)
+        layout.addWidget(self.web_widget)
+
+        # Add menu bar
+        menu_bar = self.menuBar()
+
+        fileMenu = menu_bar.addMenu("&File")
+        editMenu = menu_bar.addMenu("&Edit")
+        helpMenu = menu_bar.addMenu("&Help")
+
+        # File Menu
+        # Edit Menu
+        # Help Menu
+        aboutAction = helpMenu.addAction("About")
+        aboutAction.triggered.connect(self.about_dialog)
+        helpMenu.addAction(aboutAction)
+
+        # Add main widget
+        widget = QWidget()
+        widget.setLayout(layout)
+        self.setCentralWidget(widget)
+
+    def request_load_page(self):
+        url = self.url_bar.text()
+        self.web_engine.load_page(url)
+    
+    def request_back_page(self):
+        self.web_engine.back_page()
+
+    def request_next_page(self):
+        self.web_engine.next_page()
+
+    def about_dialog(self):
+        dlg = QDialog(self)
+        dlg.setWindowTitle("About")
+        dlg_layout = QVBoxLayout()
+        dlg.setStyleSheet("color: white;")
+        dlg.setFixedSize(240, 270)
+
+        logoLabel = QLabel(self)
+        logoLabel.setFixedSize(128, 128)
+        logoLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logoLabel.setScaledContents(True)
+        logo_path = os.path.join(SCRIPT_DIR, "assets", "svs.png")
+        if os.path.exists(logo_path):
+            logoLabel.setPixmap(QPixmap(logo_path))
+
+        about_title = QLabel("Silk Mizu")
+        about_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        about_title.setStyleSheet("font-size: 20px; font-weight: bold;")
+        about_description = QLabel("A simple PyQT6 browser for Silk and Linux devices.")
+        about_description.setWordWrap(True)
+        about_description.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        about_label = QLabel(f"Version: {VERSION_NUMBER}\nSilk Project 2025")
+        about_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        dlg_layout.addWidget(logoLabel)
+        dlg_layout.addWidget(about_title)
+        dlg_layout.addWidget(about_description)
+        dlg_layout.addWidget(about_label)
+        dlg.setLayout(dlg_layout)
+        dlg.exec()
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    app.setApplicationName("Silk Mizu")
+    app.setStyle("breeze")
+    window = BrowserWindow()
+    window.show()
+    sys.exit(app.exec())
