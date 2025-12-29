@@ -153,7 +153,8 @@ class BrowserWindow(QMainWindow):
 
         # Window configuration
         self.setWindowTitle("Silk Mizu")
-        self.setMinimumSize(960, 720)
+        self.setMinimumSize(480, 360)
+        self.resize(960, 720)
         self.layout = QGridLayout()
 
         # Initialize whole UI
