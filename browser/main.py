@@ -27,7 +27,7 @@ import qtawesome as qta
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "config", "settings.json")
-VERSION_NUMBER = "0.0.1"
+VERSION_NUMBER = "0.2.1"
 SEARCH_ENGINE_SEARCH_QUERIES = {
     "Google":"https://www.google.com/search?q=",
     "DuckDuckGo":"https://duckduckgo.com/?q=",
@@ -62,13 +62,13 @@ else:
         json.dump(default_settings, f, indent=4)
 
 class WebEngine():
-    def __init__(self, window, url_bar, prevbtn, nextbtn, status_bar, page_progress):
+    def __init__(self, window, url_bar, prevbtn, nextbtn, page_progress, zoom_label):
         self.window = window
         self.url_bar = url_bar
         self.prevbtn = prevbtn
         self.nextbtn = nextbtn
-        self.status_bar = status_bar
         self.page_progress = page_progress
+        self.zoom_label = zoom_label
 
         self.init_engine()
     
@@ -125,6 +125,24 @@ class WebEngine():
 
     def next_page(self):
         self.window.history().forward()
+
+    def update_zoom_label(self):
+        zoom_string = str(round(self.window.zoomFactor() * 100)) + "%"
+        self.zoom_label.setText(zoom_string)
+    
+    def scale_page_up(self):
+        zoom_factor = self.window.zoomFactor()
+        self.window.setZoomFactor(zoom_factor + 0.1)
+        self.update_zoom_label()
+
+    def scale_page_down(self):
+        zoom_factor = self.window.zoomFactor()
+        self.window.setZoomFactor(zoom_factor - 0.1)
+        self.update_zoom_label()
+    
+    def scale_page_reset(self):
+        self.window.setZoomFactor(1)
+        self.update_zoom_label()
     
     def update_engine(self):
         self.window.settings().setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, javascript_enabled)
@@ -136,10 +154,10 @@ class BrowserWindow(QMainWindow):
         # Window configuration
         self.setWindowTitle("Silk Mizu")
         self.setMinimumSize(960, 720)
-        self.layout = QVBoxLayout()
+        self.layout = QGridLayout()
 
         # Initialize whole UI
-        self.init_menu_status_bar()
+        self.init_menu_bar()
         self.init_control_ui()
         self.init_web_engine()
 
@@ -148,7 +166,7 @@ class BrowserWindow(QMainWindow):
         widget.setLayout(self.layout)
         self.setCentralWidget(widget)
     
-    def init_menu_status_bar(self):
+    def init_menu_bar(self):
         # Add menu bar
         menu_bar = self.menuBar()
 
@@ -181,14 +199,17 @@ class BrowserWindow(QMainWindow):
 
         # View Menu
         scaleUpAction = viewMenu.addAction("Increase page zoom by 10%")
+        scaleUpAction.triggered.connect(self.request_scale_page_up)
         scaleUpAction.setShortcut("Ctrl + +")
         viewMenu.addAction(scaleUpAction)
 
         scaleDownAction = viewMenu.addAction("Decrease page zoom by 10%")
+        scaleDownAction.triggered.connect(self.request_scale_page_down)
         scaleDownAction.setShortcut("Ctrl + -")
         viewMenu.addAction(scaleDownAction)
 
         scaleDefaultAction = viewMenu.addAction("Set page zoom to 100%")
+        scaleDefaultAction.triggered.connect(self.request_scale_page_reset)
         viewMenu.addAction(scaleDefaultAction)
 
         # Help Menu
@@ -200,18 +221,12 @@ class BrowserWindow(QMainWindow):
         aboutAction.triggered.connect(self.about_dialog)
         helpMenu.addAction(aboutAction)
 
-        # Add status bar
-        self.status_bar = self.statusBar()
-        self.page_progressbar = QProgressBar()
-        self.page_progressbar.setFixedWidth(200)
-        self.page_progressbar.setValue(0)
-
-        self.status_bar.addWidget(self.page_progressbar)
-
     def init_control_ui(self):
         # Add main controls
         controls_layout = QHBoxLayout()
-        self.layout.addLayout(controls_layout)
+        bottom_bar_layout = QHBoxLayout()
+        self.layout.addLayout(controls_layout, 0, 0)
+        self.layout.addLayout(bottom_bar_layout, 2, 0)
 
         # Browser main controls
         self.prev_page_btn = QPushButton()
@@ -249,6 +264,28 @@ class BrowserWindow(QMainWindow):
         self.settings_btn.setStyleSheet("padding: 10px;")
         self.settings_btn.clicked.connect(self.settings_dialog)
         controls_layout.addWidget(self.settings_btn)
+
+        # Bottom bar
+        self.page_progressbar = QProgressBar()
+        self.page_progressbar.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.page_progressbar.setFixedWidth(200)
+        self.page_progressbar.setValue(0)
+        bottom_bar_layout.addWidget(self.page_progressbar)
+
+        bottom_bar_layout.addStretch(1)
+
+        self.scale_down_btn = QPushButton()
+        self.scale_down_btn.setIcon(qta.icon("ph.magnifying-glass-minus"))
+        self.scale_down_btn.clicked.connect(self.request_scale_page_down)
+        bottom_bar_layout.addWidget(self.scale_down_btn)
+
+        self.zoom_factor_label = QLabel("100%")
+        bottom_bar_layout.addWidget(self.zoom_factor_label)
+
+        self.scale_up_btn = QPushButton()
+        self.scale_up_btn.setIcon(qta.icon("ph.magnifying-glass-plus"))
+        self.scale_up_btn.clicked.connect(self.request_scale_page_up)
+        bottom_bar_layout.addWidget(self.scale_up_btn)
     
     def init_web_engine(self):
         # Web Engine
@@ -257,12 +294,12 @@ class BrowserWindow(QMainWindow):
                                     self.url_bar,
                                     self.prev_page_btn,
                                     self.next_page_btn,
-                                    self.status_bar,
-                                    self.page_progressbar)
+                                    self.page_progressbar,
+                                    self.zoom_factor_label)
         self.web_widget.urlChanged.connect(self.web_engine.update_url_bar)
         self.web_widget.loadProgress.connect(self.web_engine.update_page_progress)
         self.web_widget.loadFinished.connect(self.web_engine.page_load_finished)
-        self.layout.addWidget(self.web_widget)
+        self.layout.addWidget(self.web_widget, 1, 0)
 
     def request_load_page(self):
         url = self.url_bar.text()
@@ -280,6 +317,15 @@ class BrowserWindow(QMainWindow):
 
     def request_next_page(self):
         self.web_engine.next_page()
+    
+    def request_scale_page_up(self):
+        self.web_engine.scale_page_up()
+    
+    def request_scale_page_down(self):
+        self.web_engine.scale_page_down()
+    
+    def request_scale_page_reset(self):
+        self.web_engine.scale_page_reset()
     
     def settings_dialog(self):
         global start_page
