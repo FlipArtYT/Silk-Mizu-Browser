@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings
-from PyQt6.QtGui import QPixmap, QIcon, QAction
+from PyQt6.QtGui import QPixmap, QAction, QKeySequence
 import qtawesome as qta
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -151,20 +151,42 @@ class BrowserWindow(QMainWindow):
 
         fileMenu = menu_bar.addMenu("&File")
         editMenu = menu_bar.addMenu("&Edit")
-        settingsMenu = menu_bar.addMenu("&Settings")
+        viewMenu = menu_bar.addMenu("&View")
         helpMenu = menu_bar.addMenu("&Help")
 
         # File Menu
+        settingsAction = fileMenu.addAction("Program Settings")
+        settingsAction.triggered.connect(self.settings_dialog)
+        settingsAction.setShortcut(QKeySequence("Ctrl + s"))
+        fileMenu.addAction(settingsAction)
+
         exitAction = fileMenu.addAction("Quit")
         exitAction.triggered.connect(sys.exit)
+        exitAction.setShortcut(QKeySequence("Ctrl + q"))
         fileMenu.addAction(exitAction)
 
         # Edit Menu
+        backAction = editMenu.addAction("Back")
+        backAction.triggered.connect(self.request_back_page)
+        backAction.setShortcut("Alt + left")
+        editMenu.addAction(backAction)
 
-        # Settings Menu
-        settingsAction = settingsMenu.addAction("Program Settings")
-        settingsAction.triggered.connect(self.settings_dialog)
-        settingsMenu.addAction(settingsAction)
+        nextAction = editMenu.addAction("Next")
+        nextAction.triggered.connect(self.request_next_page)
+        nextAction.setShortcut(QKeySequence("Alt + right"))
+        editMenu.addAction(nextAction)
+
+        # View Menu
+        scaleUpAction = viewMenu.addAction("Increase page zoom by 10%")
+        scaleUpAction.setShortcut("Ctrl + +")
+        viewMenu.addAction(scaleUpAction)
+
+        scaleDownAction = viewMenu.addAction("Decrease page zoom by 10%")
+        scaleDownAction.setShortcut("Ctrl + -")
+        viewMenu.addAction(scaleDownAction)
+
+        scaleDefaultAction = viewMenu.addAction("Set page zoom to 100%")
+        viewMenu.addAction(scaleDefaultAction)
 
         # Help Menu
         documentationAction = QAction("Project Page", self)
