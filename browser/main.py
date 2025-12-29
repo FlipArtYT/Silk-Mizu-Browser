@@ -30,7 +30,10 @@ CONFIG_PATH = os.path.join(SCRIPT_DIR, "config", "settings.json")
 VERSION_NUMBER = "0.0.1"
 SEARCH_ENGINE_SEARCH_QUERIES = {
     "Google":"https://www.google.com/search?q=",
-    "DuckDuckGo":"https://duckduckgo.com/?q="
+    "DuckDuckGo":"https://duckduckgo.com/?q=",
+    "Brave":"https://search.brave.com/search?q=",
+    "Ecosia":"https://www.ecosia.org/search?method=index&q=",
+    "Yahoo":"https://search.yahoo.com/search?p="
 }
 start_page = "https://silk-project.github.io/"
 search_engine = "Google"
@@ -301,7 +304,7 @@ class BrowserWindow(QMainWindow):
         settings_layout.addRow("Start page: ", start_page_lineedit)
 
         search_engine_combobox = QComboBox()
-        search_engine_combobox.addItems(["Google", "DuckDuckGo"])
+        search_engine_combobox.addItems(["Google", "DuckDuckGo", "Brave", "Ecosia", "Yahoo"])
         search_engine_combobox.setCurrentText(search_engine)
         settings_layout.addRow("Search engine: ", search_engine_combobox)
 
