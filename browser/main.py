@@ -18,7 +18,8 @@ from PyQt6.QtWidgets import (
     QDialog,
     QLabel,
     QDialogButtonBox,
-    QProgressBar
+    QProgressBar,
+    QSizePolicy
 )
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -28,7 +29,7 @@ import qtawesome as qta
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "config", "settings.json")
-VERSION_NUMBER = "0.2.2"
+VERSION_NUMBER = "0.2.3"
 SEARCH_ENGINE_SEARCH_QUERIES = {
     "Google":"https://www.google.com/search?q=",
     "DuckDuckGo":"https://duckduckgo.com/?q=",
@@ -42,7 +43,11 @@ default_settings = {
     "start_page_url":"https://silk-project.github.io/",
     "search_engine":"Google",
     "javascript_enabled":True,
-    "default_font_size":16
+    "default_font_size":16,
+    "bookmarks":{
+        "Google":"https://google.com/",
+        "Wikipedia":"https://wikipedia.org/"
+    }
 }
 
 # Load settings.json
@@ -257,9 +262,11 @@ class BrowserWindow(QMainWindow):
     def init_control_ui(self):
         # Add main controls
         controls_layout = QHBoxLayout()
+        bookmarks_layout = QHBoxLayout()
         bottom_bar_layout = QHBoxLayout()
         self.layout.addLayout(controls_layout, 0, 0)
-        self.layout.addLayout(bottom_bar_layout, 2, 0)
+        self.layout.addLayout(bookmarks_layout, 1, 0)
+        self.layout.addLayout(bottom_bar_layout, 3, 0)
 
         # Browser main controls
         self.prev_page_btn = QPushButton()
@@ -283,20 +290,37 @@ class BrowserWindow(QMainWindow):
         self.url_bar = QLineEdit()
         self.url_bar.setStyleSheet("padding: 10px;")
         self.url_bar.clearFocus()
-        self.url_bar.returnPressed.connect(self.request_load_page)
+        self.url_bar.returnPressed.connect(self.request_load_page_from_urlbar)
         controls_layout.addWidget(self.url_bar)
 
         self.load_btn = QPushButton("Go")
         self.load_btn.setIcon(qta.icon("mdi.arrow-right-bold-box"))
         self.load_btn.setStyleSheet("padding: 10px;")
-        self.load_btn.clicked.connect(self.request_load_page)
+        self.load_btn.clicked.connect(self.request_load_page_from_urlbar)
         controls_layout.addWidget(self.load_btn)
+
+        self.add_to_bookmarks_btn = QPushButton()
+        self.add_to_bookmarks_btn.setIcon(qta.icon("fa5s.star"))
+        self.add_to_bookmarks_btn.setStyleSheet("padding: 10px;")
+        controls_layout.addWidget(self.add_to_bookmarks_btn)
 
         self.settings_btn = QPushButton()
         self.settings_btn.setIcon(qta.icon("fa5s.cog"))
         self.settings_btn.setStyleSheet("padding: 10px;")
         self.settings_btn.clicked.connect(self.settings_dialog)
         controls_layout.addWidget(self.settings_btn)
+
+        # Bookmark bar
+        bookmark_map = {}
+
+        for name, url in current_settings["bookmarks"].items():
+            bookmark_btn = QPushButton(name)
+            bookmark_btn.setStyleSheet("padding: 5px;")
+            bookmark_btn.clicked.connect(lambda checked, url=url: self.request_load_page(url))
+            bookmark_map[name] = bookmark_btn
+            bookmarks_layout.addWidget(bookmark_btn)
+
+        bookmarks_layout.addStretch(1)
 
         # Bottom bar
         self.page_progressbar = QProgressBar()
@@ -333,10 +357,13 @@ class BrowserWindow(QMainWindow):
         self.web_widget.urlChanged.connect(self.web_engine.update_url_bar)
         self.web_widget.loadProgress.connect(self.web_engine.update_page_progress)
         self.web_widget.loadFinished.connect(self.web_engine.page_load_finished)
-        self.layout.addWidget(self.web_widget, 1, 0)
+        self.layout.addWidget(self.web_widget, 2, 0)
 
-    def request_load_page(self):
+    def request_load_page_from_urlbar(self):
         url = self.url_bar.text()
+        self.web_engine.load_page(url)
+    
+    def request_load_page(self, url):
         self.web_engine.load_page(url)
     
     def request_reload_stop_page(self):
@@ -387,12 +414,12 @@ class BrowserWindow(QMainWindow):
 
         javascript_checkbox = QCheckBox()
         javascript_checkbox.setChecked(current_settings["javascript_enabled"])
-        settings_layout.addRow("Javascript enabled", javascript_checkbox)
+        settings_layout.addRow("Javascript enabled: ", javascript_checkbox)
 
         font_size_spinbox = QSpinBox()
         font_size_spinbox.setRange(10, 80)
         font_size_spinbox.setValue(current_settings["default_font_size"])
-        settings_layout.addRow("Default font size:", font_size_spinbox)
+        settings_layout.addRow("Default font size: ", font_size_spinbox)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(dlg.accept)
