@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QComboBox,
     QCheckBox,
+    QSpinBox,
     QDialog,
     QLabel,
     QDialogButtonBox,
@@ -27,7 +28,7 @@ import qtawesome as qta
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "config", "settings.json")
-VERSION_NUMBER = "0.2.1"
+VERSION_NUMBER = "0.2.2"
 SEARCH_ENGINE_SEARCH_QUERIES = {
     "Google":"https://www.google.com/search?q=",
     "DuckDuckGo":"https://duckduckgo.com/?q=",
@@ -40,7 +41,8 @@ current_settings = {}
 default_settings = {
     "start_page_url":"https://silk-project.github.io/",
     "search_engine":"Google",
-    "javascript_enabled":True
+    "javascript_enabled":True,
+    "default_font_size":16
 }
 
 # Load settings.json
@@ -59,6 +61,7 @@ else:
     os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
     with open(CONFIG_PATH, "w") as f:
         json.dump(default_settings, f, indent=4)
+    current_settings = default_settings
 
 class WebEngine():
     def __init__(self, window, url_bar, prevbtn, nextbtn, reloadbtn, page_progress, zoom_label):
@@ -166,8 +169,11 @@ class WebEngine():
         self.update_zoom_label()
     
     def update_engine(self):
-        self.window.settings().setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled,
-                                            current_settings["javascript_enabled"])
+        settings = self.window.settings()
+        settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled,
+                             current_settings["javascript_enabled"])
+        settings.setFontSize(QWebEngineSettings.FontSize.DefaultFontSize,
+                             current_settings["default_font_size"])
 
 class BrowserWindow(QMainWindow):
     def __init__(self):
@@ -379,6 +385,11 @@ class BrowserWindow(QMainWindow):
         javascript_checkbox.setChecked(current_settings["javascript_enabled"])
         settings_layout.addRow("Javascript enabled", javascript_checkbox)
 
+        font_size_spinbox = QSpinBox()
+        font_size_spinbox.setRange(10, 80)
+        font_size_spinbox.setValue(current_settings["default_font_size"])
+        settings_layout.addRow("Default font size:", font_size_spinbox)
+
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(dlg.accept)
         button_box.rejected.connect(dlg.reject)
@@ -392,11 +403,13 @@ class BrowserWindow(QMainWindow):
             start_page = start_page_lineedit.text()
             search_engine = search_engine_combobox.currentText()
             javascript_enabled = javascript_checkbox.isChecked()
+            default_font_size = font_size_spinbox.value()
 
             updated_settings = {
                 "start_page_url":start_page,
                 "search_engine":search_engine,
-                "javascript_enabled":javascript_enabled
+                "javascript_enabled":javascript_enabled,
+                "default_font_size":default_font_size
             }
 
             current_settings = updated_settings
