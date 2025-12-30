@@ -85,7 +85,7 @@ class WebEngine():
             self.window.setUrl(QUrl(processed_url))
         else:
             # Get url for search engine
-            search_url = SEARCH_ENGINE_SEARCH_QUERIES.get(search_engine) + url
+            search_url = SEARCH_ENGINE_SEARCH_QUERIES.get(current_settings["search_engine"]) + url
             self.window.setUrl(QUrl(search_url))
         
         self.page_is_loading = True
@@ -166,7 +166,6 @@ class WebEngine():
         self.update_zoom_label()
     
     def update_engine(self):
-        global current_settings
         self.window.settings().setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled,
                                             current_settings["javascript_enabled"])
 
