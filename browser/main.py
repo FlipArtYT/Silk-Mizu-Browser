@@ -211,6 +211,7 @@ class BrowserWindow(QMainWindow):
         fileMenu = menu_bar.addMenu("&File")
         editMenu = menu_bar.addMenu("&Edit")
         viewMenu = menu_bar.addMenu("&View")
+        bookmarkMenu = menu_bar.addMenu("&Bookmarks")
         helpMenu = menu_bar.addMenu("&Help")
 
         # File Menu
@@ -238,17 +239,27 @@ class BrowserWindow(QMainWindow):
         # View Menu
         scaleUpAction = viewMenu.addAction("Increase page zoom by 10%")
         scaleUpAction.triggered.connect(self.request_scale_page_up)
-        scaleUpAction.setShortcut("Ctrl + +")
+        scaleUpAction.setShortcut(QKeySequence("Ctrl + +"))
         viewMenu.addAction(scaleUpAction)
 
         scaleDownAction = viewMenu.addAction("Decrease page zoom by 10%")
         scaleDownAction.triggered.connect(self.request_scale_page_down)
-        scaleDownAction.setShortcut("Ctrl + -")
+        scaleDownAction.setShortcut(QKeySequence("Ctrl + -"))
         viewMenu.addAction(scaleDownAction)
 
         scaleDefaultAction = viewMenu.addAction("Set page zoom to 100%")
         scaleDefaultAction.triggered.connect(self.request_scale_page_reset)
         viewMenu.addAction(scaleDefaultAction)
+
+        # Bookmarks Menu
+        manageBookmarksAction = bookmarkMenu.addAction("Manage bookmarks")
+        manageBookmarksAction.setShortcut(QKeySequence("Ctrl + shift + o"))
+        bookmarkMenu.addAction(manageBookmarksAction)
+
+        addPageToBookmarksAction = bookmarkMenu.addAction("Add current page to bookmarks")
+        addPageToBookmarksAction.triggered.connect(self.add_to_bookmarks_dialog)
+        addPageToBookmarksAction.setShortcut(QKeySequence("Ctrl + d"))
+        bookmarkMenu.addAction(addPageToBookmarksAction)
 
         # Help Menu
         documentationAction = QAction("Project Page", self)
@@ -262,10 +273,8 @@ class BrowserWindow(QMainWindow):
     def init_control_ui(self):
         # Add main controls
         controls_layout = QHBoxLayout()
-        bookmarks_layout = QHBoxLayout()
         bottom_bar_layout = QHBoxLayout()
         self.layout.addLayout(controls_layout, 0, 0)
-        self.layout.addLayout(bookmarks_layout, 1, 0)
         self.layout.addLayout(bottom_bar_layout, 3, 0)
 
         # Browser main controls
@@ -302,6 +311,7 @@ class BrowserWindow(QMainWindow):
         self.add_to_bookmarks_btn = QPushButton()
         self.add_to_bookmarks_btn.setIcon(qta.icon("fa5s.star"))
         self.add_to_bookmarks_btn.setStyleSheet("padding: 10px;")
+        self.add_to_bookmarks_btn.clicked.connect(self.add_to_bookmarks_dialog)
         controls_layout.addWidget(self.add_to_bookmarks_btn)
 
         self.settings_btn = QPushButton()
@@ -311,16 +321,7 @@ class BrowserWindow(QMainWindow):
         controls_layout.addWidget(self.settings_btn)
 
         # Bookmark bar
-        bookmark_map = {}
-
-        for name, url in current_settings["bookmarks"].items():
-            bookmark_btn = QPushButton(name)
-            bookmark_btn.setStyleSheet("padding: 5px;")
-            bookmark_btn.clicked.connect(lambda checked, url=url: self.request_load_page(url))
-            bookmark_map[name] = bookmark_btn
-            bookmarks_layout.addWidget(bookmark_btn)
-
-        bookmarks_layout.addStretch(1)
+        self.init_bookmark_bar()
 
         # Bottom bar
         self.page_progressbar = QProgressBar()
@@ -343,6 +344,23 @@ class BrowserWindow(QMainWindow):
         self.scale_up_btn.setIcon(qta.icon("ph.magnifying-glass-plus"))
         self.scale_up_btn.clicked.connect(self.request_scale_page_up)
         bottom_bar_layout.addWidget(self.scale_up_btn)
+
+    def init_bookmark_bar(self):
+        # Bookmark bar
+        global current_settings
+        bookmarks_layout = QHBoxLayout()
+        self.layout.addLayout(bookmarks_layout, 1, 0)
+
+        bookmark_map = {}
+
+        for name, url in current_settings["bookmarks"].items():
+            bookmark_btn = QPushButton(name)
+            bookmark_btn.setStyleSheet("padding: 5px;")
+            bookmark_btn.clicked.connect(lambda checked, url=url: self.request_load_page(url))
+            bookmark_map[name] = bookmark_btn
+            bookmarks_layout.addWidget(bookmark_btn)
+
+        bookmarks_layout.addStretch(1)
     
     def init_web_engine(self):
         # Web Engine
@@ -386,6 +404,51 @@ class BrowserWindow(QMainWindow):
     
     def request_scale_page_reset(self):
         self.web_engine.scale_page_reset()
+
+    def add_to_bookmarks_dialog(self):
+        global current_settings
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Add to Bookmarks")
+        dlg.setFixedSize(340, 220)
+
+        layout = QGridLayout()
+        form_layout = QFormLayout()
+
+        title_label = QLabel("Add Current Page to Bookmarks")
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_label.setStyleSheet("font-size: 16px; font-weight: bold; padding: 20px")
+        form_layout.addRow(title_label)
+
+        name_lineedit = QLineEdit()
+        name_lineedit.setText(self.web_widget.title())
+        name_lineedit.setMinimumWidth(200)
+        form_layout.addRow("Bookmark name: ", name_lineedit)
+
+        url_lineedit = QLineEdit()
+        url_lineedit.setText(self.web_widget.url().toString())
+        url_lineedit.setMinimumWidth(200)
+        form_layout.addRow("Bookmark URL: ", url_lineedit)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(dlg.accept)
+        button_box.rejected.connect(dlg.reject)
+
+        layout.addLayout(form_layout, 0, 0, 0, 2)
+        layout.addWidget(button_box, 1, 1)
+
+        dlg.setLayout(layout)
+
+        if dlg.exec():
+            bookmark_name = name_lineedit.text()
+            bookmark_url = url_lineedit.text()
+
+            current_settings["bookmarks"][bookmark_name] = bookmark_url
+
+            with open(CONFIG_PATH, "w") as f:
+                json.dump(current_settings, f, indent=4)
+            
+            self.init_bookmark_bar()
     
     def settings_dialog(self):
         global current_settings
@@ -440,7 +503,8 @@ class BrowserWindow(QMainWindow):
                 "start_page_url":start_page,
                 "search_engine":search_engine,
                 "javascript_enabled":javascript_enabled,
-                "default_font_size":default_font_size
+                "default_font_size":default_font_size,
+                "bookmarks":current_settings["bookmarks"]
             }
 
             current_settings = updated_settings
