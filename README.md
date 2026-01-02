@@ -7,6 +7,7 @@ Simple and lightweight PyQT6 browser for Silk and Linux / Windows / Mac computer
 - Custom start page selection
 - Basic browser navigation features (e.g. going back a page)
 - Accessability features (zooming)
+- Bookmarks and easy Bookmark management
 
 # ⚙️ Requirements
 - `pyqt6` (pip)
