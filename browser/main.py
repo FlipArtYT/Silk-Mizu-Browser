@@ -560,7 +560,7 @@ class BrowserWindow(QMainWindow):
         self.web_engine.scale_page_reset()
 
     def add_current_to_bookmarks_dialog(self):
-        global current_settings
+        global current_bookmarks
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Add to Bookmarks")
