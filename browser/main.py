@@ -111,6 +111,7 @@ class WebEngine():
         self.page_is_loading = False
 
         self.init_engine()
+        self.update_engine_config()
     
     def init_engine(self):
         self.load_page(current_settings["start_page_url"])
@@ -207,7 +208,7 @@ class WebEngine():
         self.window.setZoomFactor(1)
         self.update_zoom_label()
     
-    def update_engine(self):
+    def update_engine_config(self):
         settings = self.window.settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled,
                              current_settings["javascript_enabled"])
@@ -784,7 +785,7 @@ class BrowserWindow(QMainWindow):
         urledit.setEnabled(enable)
     
     def update_web_engine(self):
-        self.web_engine.update_engine()
+        self.web_engine.update_engine_config()
         
     def about_dialog(self):
         dlg = QDialog(self)
