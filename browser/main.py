@@ -35,7 +35,7 @@ import darkdetect
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "config", "settings.json")
 BOOKMARKS_PATH = os.path.join(SCRIPT_DIR, "config", "bookmarks.json")
-START_PAGE_PATH = os.path.join(SCRIPT_DIR, "assets", "Silk-Start", "start", "v1.1", "full", "index.html")
+START_PAGE_PATH = os.path.join(SCRIPT_DIR, "assets", "Silk-Start", "start", "v1.1.1", "seperate", "index.html")
 VERSION_NUMBER = "0.2.4"
 SEARCH_ENGINE_SEARCH_QUERIES = {
     "Google":"https://www.google.com/search?q=",
