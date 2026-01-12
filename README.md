@@ -17,6 +17,12 @@ Simple and lightweight PyQT6 browser for Silk and Linux / Windows / Mac computer
 - `pyqtdarktheme` (pip)
 - `darkdetect` (pip)
 
+# ⬇️ Getting the program
+A normal git clone will result into missing submodules. Instead use this command:
+```
+git clone --recursive https://github.com/Silk-Project/Silk-Mizu-Browser.git
+```
+
 # 🚀 Running the program
 To use this program, simply execute the main.py file directly via python3.
 ```
