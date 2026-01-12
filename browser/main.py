@@ -22,7 +22,9 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QTabWidget,
     QRadioButton,
-    QButtonGroup
+    QButtonGroup,
+    QFrame,
+    QSizePolicy
 )
 from PyQt6.QtCore import Qt, QUrl, QSize
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -50,6 +52,7 @@ default_settings = {
     "start_page_url":START_PAGE_PATH,
     "search_engine":"Google",
     "theme":"Dark",
+    "bottom_bar_visible":False,
     "javascript_enabled":True,
     "default_font_size":16,
     "scrollbars_enabled":True
@@ -434,17 +437,25 @@ class BrowserWindow(QMainWindow):
         helpMenu.addAction(aboutAction)
 
     def init_control_ui(self):
-        # Add main controls
+        # Add main control layouts
         controls_layout = QHBoxLayout()
-        controls_layout.setContentsMargins(4, 4, 4, 4)
-        controls_layout.setSpacing(4)
+        controls_layout.setContentsMargins(5, 5, 5, 5)
+        controls_layout.setSpacing(5)
 
+        self.bottom_bar = QWidget()
+        self.bottom_bar.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        self.bottom_bar.setContentsMargins(0, 0, 0, 0)
         bottom_bar_layout = QHBoxLayout()
-        bottom_bar_layout.setContentsMargins(4, 4, 4, 4)
-        bottom_bar_layout.setSpacing(4)
+        bottom_bar_layout.setContentsMargins(5, 5, 5, 5)
+        bottom_bar_layout.setSpacing(5)
+
+        if not current_settings["bottom_bar_visible"]:
+            self.bottom_bar.hide()
+
+        self.bottom_bar.setLayout(bottom_bar_layout)
 
         self.layout.addLayout(controls_layout, 0, 0)
-        self.layout.addLayout(bottom_bar_layout, 3, 0)
+        self.layout.addWidget(self.bottom_bar, 3, 0)
 
         # Browser main controls
         self.prev_page_btn = QPushButton()
@@ -531,8 +542,8 @@ class BrowserWindow(QMainWindow):
             return
         
         bookmarks_layout = QHBoxLayout()
-        bookmarks_layout.setContentsMargins(4, 0, 4, 4)
-        bookmarks_layout.setSpacing(4)
+        bookmarks_layout.setContentsMargins(5, 0, 5, 5)
+        bookmarks_layout.setSpacing(5)
         self.layout.addLayout(bookmarks_layout, 1, 0)
 
         # Clear existing bookmarks
@@ -716,6 +727,10 @@ class BrowserWindow(QMainWindow):
         theme_combobox.setCurrentText(current_settings["theme"])
         display_settings_layout.addRow("Theme: ", theme_combobox)
 
+        bottom_bar_visability_checkbox = QCheckBox()
+        bottom_bar_visability_checkbox.setChecked(current_settings["bottom_bar_visible"])
+        display_settings_layout.addRow("Show bottom bar: ", bottom_bar_visability_checkbox)
+
         # Engine tab settings
         engine_settings = QWidget()
         engine_settings_layout = QFormLayout()
@@ -753,10 +768,12 @@ class BrowserWindow(QMainWindow):
             start_page = start_page_urledit.text() if start_page_url_radio_button.isChecked() else START_PAGE_PATH
             search_engine = search_engine_combobox.currentText()
             theme = theme_combobox.currentText()
+            bottom_bar_visible = bottom_bar_visability_checkbox.isChecked()
             javascript_enabled = javascript_checkbox.isChecked()
             default_font_size = font_size_spinbox.value()
             default_scrollbars_enabled = scrollbars_enabled_checkbox.isChecked()
 
+            # Update settings in browser
             if theme == "Light":
                 app.setStyleSheet(qdarktheme.load_stylesheet("light"))
             elif theme == "Dark":
@@ -765,10 +782,19 @@ class BrowserWindow(QMainWindow):
                 system_theme = "Dark" if darkdetect.isDark() else "Light"
                 app.setStyleSheet(qdarktheme.load_stylesheet(system_theme.lower()))
 
+            if bottom_bar_visible:
+                self.bottom_bar.show()
+            else:
+                self.bottom_bar.hide()
+
+            self.update_web_engine()
+
+            # Prepare settings.json
             updated_settings = {
                 "start_page_url":start_page,
                 "search_engine":search_engine,
                 "theme":theme,
+                "bottom_bar_visible":bottom_bar_visible,
                 "javascript_enabled":javascript_enabled,
                 "default_font_size":default_font_size,
                 "scrollbars_enabled":default_scrollbars_enabled
@@ -776,8 +802,7 @@ class BrowserWindow(QMainWindow):
 
             current_settings = updated_settings
 
-            self.update_web_engine()
-
+            # Write to settings.json
             with open(CONFIG_PATH, "w") as f:
                 json.dump(updated_settings, f, indent=4)
     
