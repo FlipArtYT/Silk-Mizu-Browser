@@ -259,16 +259,17 @@ class ManageBookmarksDialog(QDialog):
         content_layout.addWidget(self.list_widget, 1)
 
         # Right side: Bookmark actions
+        icon_color = self.parent().get_contrast_color_from_theme()
         action_layout = QVBoxLayout()
 
         add_btn = QPushButton("Add New")
-        add_btn.setIcon(qta.icon("fa6s.plus"))
+        add_btn.setIcon(qta.icon("fa6s.plus", color=icon_color))
         add_btn.setIconSize(QSize(16, 16))
         add_btn.clicked.connect(self.add_bookmark)
         action_layout.addWidget(add_btn)
 
         delete_btn = QPushButton("Delete")
-        delete_btn.setIcon(qta.icon("fa6s.minus"))
+        delete_btn.setIcon(qta.icon("fa6s.minus", color=icon_color))
         delete_btn.setIconSize(QSize(16, 16))
         delete_btn.clicked.connect(self.delete_bookmark)
         action_layout.addWidget(delete_btn)
@@ -458,22 +459,24 @@ class BrowserWindow(QMainWindow):
         self.layout.addWidget(self.bottom_bar, 3, 0)
 
         # Browser main controls
+        icon_color = self.get_contrast_color_from_theme()
+
         self.prev_page_btn = QPushButton()
-        self.prev_page_btn.setIcon(qta.icon("fa6s.arrow-left"))
+        self.prev_page_btn.setIcon(qta.icon("fa6s.arrow-left", color=icon_color))
         self.prev_page_btn.setProperty("class", "navbtns")
         self.prev_page_btn.setStyleSheet("padding: 8px;")
         self.prev_page_btn.clicked.connect(self.request_back_page)
         controls_layout.addWidget(self.prev_page_btn)
 
         self.next_page_btn = QPushButton()
-        self.next_page_btn.setIcon(qta.icon("fa6s.arrow-right"))
+        self.next_page_btn.setIcon(qta.icon("fa6s.arrow-right", color=icon_color))
         self.next_page_btn.setProperty("class", "navbtns")
         self.next_page_btn.setStyleSheet("padding: 8px;")
         self.next_page_btn.clicked.connect(self.request_next_page)
         controls_layout.addWidget(self.next_page_btn)
 
         self.reload_page_btn = QPushButton()
-        self.reload_page_btn.setIcon(qta.icon("fa6s.arrow-rotate-right"))
+        self.reload_page_btn.setIcon(qta.icon("fa6s.arrow-rotate-right", color=icon_color))
         self.reload_page_btn.setProperty("class", "navbtns")
         self.reload_page_btn.setStyleSheet("padding: 8px;")
         self.reload_page_btn.clicked.connect(self.request_reload_stop_page)
@@ -487,21 +490,21 @@ class BrowserWindow(QMainWindow):
         controls_layout.addWidget(self.url_bar)
 
         self.load_btn = QPushButton("Go")
-        self.load_btn.setIcon(qta.icon("mdi.arrow-right-bold-box"))
+        self.load_btn.setIcon(qta.icon("mdi.arrow-right-bold-box", color=icon_color))
         self.load_btn.setProperty("class", "navbtns")
         self.load_btn.setStyleSheet("padding: 8px;")
         self.load_btn.clicked.connect(self.request_load_page_from_urlbar)
         controls_layout.addWidget(self.load_btn)
 
         self.add_to_bookmarks_btn = QPushButton()
-        self.add_to_bookmarks_btn.setIcon(qta.icon("fa5s.star"))
+        self.add_to_bookmarks_btn.setIcon(qta.icon("fa5s.star", color=icon_color))
         self.add_to_bookmarks_btn.setProperty("class", "navbtns")
         self.add_to_bookmarks_btn.setStyleSheet("padding: 8px;")
         self.add_to_bookmarks_btn.clicked.connect(self.add_current_to_bookmarks_dialog)
         controls_layout.addWidget(self.add_to_bookmarks_btn)
 
         self.settings_btn = QPushButton()
-        self.settings_btn.setIcon(qta.icon("fa5s.cog"))
+        self.settings_btn.setIcon(qta.icon("fa5s.cog", color=icon_color))
         self.settings_btn.setProperty("class", "navbtns")
         self.settings_btn.setStyleSheet("padding: 8px;")
         self.settings_btn.clicked.connect(self.settings_dialog)
@@ -607,6 +610,28 @@ class BrowserWindow(QMainWindow):
     
     def request_scale_page_reset(self):
         self.web_engine.scale_page_reset()
+
+    def get_cur_theme_dark_light(self):
+        if current_settings["theme"] != "Automatic":
+            return current_settings["theme"].lower()
+        else:
+            return "dark" if darkdetect.isDark() else "light"
+        
+    def get_contrast_color_from_theme(self):
+        if self.get_cur_theme_dark_light() == "light":
+            return "black"
+        else:
+            return "white"
+    
+    def update_icon_colors(self):
+        icon_color = self.get_contrast_color_from_theme()
+
+        self.prev_page_btn.setIcon(qta.icon("fa6s.arrow-left", color=icon_color))
+        self.next_page_btn.setIcon(qta.icon("fa6s.arrow-right", color=icon_color))
+        self.reload_page_btn.setIcon(qta.icon("fa6s.arrow-rotate-right", color=icon_color))
+        self.load_btn.setIcon(qta.icon("mdi.arrow-right-bold-box", color=icon_color))
+        self.add_to_bookmarks_btn.setIcon(qta.icon("fa5s.star", color=icon_color))
+        self.settings_btn.setIcon(qta.icon("fa5s.cog", color=icon_color))
 
     def add_current_to_bookmarks_dialog(self):
         dlg = QDialog(self)
@@ -801,6 +826,8 @@ class BrowserWindow(QMainWindow):
             }
 
             current_settings = updated_settings
+
+            self.update_icon_colors()
 
             # Write to settings.json
             with open(CONFIG_PATH, "w") as f:
