@@ -30,6 +30,8 @@ To use this program, simply execute the main.py file directly via python3.
 ```
 python3 main.py
 ```
+## 💻 Currently working on
+- Website tab system
 
 ## 👥 Contributing
 Feel free to open issues and create pull requests. Silk Project members can get direct access when requested.
