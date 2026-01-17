@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import re
+import copy
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -23,7 +24,7 @@ from PyQt6.QtWidgets import (
     QTabWidget,
     QRadioButton,
     QButtonGroup,
-    QFrame,
+    QMessageBox,
     QSizePolicy
 )
 from PyQt6.QtCore import Qt, QUrl, QSize
@@ -38,7 +39,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "config", "settings.json")
 BOOKMARKS_PATH = os.path.join(SCRIPT_DIR, "config", "bookmarks.json")
 START_PAGE_PATH = os.path.join(SCRIPT_DIR, "assets", "Silk-Start", "start", "v1.1.1", "seperate", "index.html")
-VERSION_NUMBER = "0.2.4"
+VERSION_NUMBER = "0.2.5"
 SEARCH_ENGINE_SEARCH_QUERIES = {
     "Google":"https://www.google.com/search?q=",
     "DuckDuckGo":"https://duckduckgo.com/?q=",
@@ -101,75 +102,31 @@ else:
         json.dump(default_bookmarks, f, indent=4)
     current_bookmarks = default_bookmarks
 
-class WebEngine():
-    def __init__(self, window, url_bar, prevbtn, nextbtn, reloadbtn, page_progress, zoom_label):
-        self.window = window
-        self.url_bar = url_bar
-        self.prevbtn = prevbtn
-        self.nextbtn = nextbtn
-        self.reloadbtn = reloadbtn
-        self.page_progress = page_progress
-        self.zoom_label = zoom_label
-
+class BetterWebEngine(QWebEngineView):
+    def __init__(self, parent):
+        super().__init__(parent)
         self.page_is_loading = False
-
         self.init_engine()
         self.update_engine_config()
     
     def init_engine(self):
         self.load_page(current_settings["start_page_url"])
-        self.update_nav_btn_status()
-    
+
     def load_page(self, url):
         # Load URL if valid, else use the default search engine
         processed_url = QUrl.fromUserInput(url).toString()
         if self.valid_url(processed_url) or self.valid_url(url):
-            self.window.setUrl(QUrl(processed_url))
+            self.setUrl(QUrl(processed_url))
         else:
             # Get url for search engine
             search_url = SEARCH_ENGINE_SEARCH_QUERIES.get(current_settings["search_engine"]) + url
-            self.window.setUrl(QUrl(search_url))
+            self.setUrl(QUrl(search_url))
         
         self.page_is_loading = True
-        self.update_url_bar()
-        self.update_nav_btn_status()
-    
-    def get_page_load_status(self):
-        return self.page_is_loading
     
     def reload_page(self):
         self.page_is_loading = True
-        self.window.reload()
-        self.update_nav_btn_status()
-    
-    def stop_page_load(self):
-        self.page_is_loading = False
-        self.window.stop()
-        self.update_nav_btn_status()
-          
-    def update_url_bar(self):
-        url = self.window.url().toString()
-        self.url_bar.setText(url)
-        self.update_nav_btn_status()
-    
-    def update_nav_btn_status(self):
-        # Activate / Deactivate Back and Forward Buttons
-        self.prevbtn.setEnabled(self.window.history().canGoBack())
-        self.nextbtn.setEnabled(self.window.history().canGoForward())
-
-        # Update reload / stop button
-        if self.page_is_loading:
-            self.reloadbtn.setIcon(qta.icon("ei.remove"))
-        else:
-            self.reloadbtn.setIcon(qta.icon("fa6s.arrow-rotate-right"))
-    
-    def page_load_finished(self):
-        self.page_is_loading = False
-        self.page_progress.setValue(0)
-        self.update_nav_btn_status()
-    
-    def update_page_progress(self, prog):
-        self.page_progress.setValue(prog)
+        self.reload()
     
     def valid_url(self, url):
         # Regex for standard http/https URLs and file paths
@@ -187,32 +144,19 @@ class WebEngine():
 
         return re.match(regex, url) is not None
     
-    def back_page(self):
-        self.window.history().back()
-
-    def next_page(self):
-        self.window.history().forward()
-
-    def update_zoom_label(self):
-        zoom_string = str(round(self.window.zoomFactor() * 100)) + "%"
-        self.zoom_label.setText(zoom_string)
-    
     def scale_page_up(self):
-        zoom_factor = self.window.zoomFactor()
-        self.window.setZoomFactor(zoom_factor + 0.1)
-        self.update_zoom_label()
+        zoom_factor = self.zoomFactor()
+        self.setZoomFactor(zoom_factor + 0.1)
 
     def scale_page_down(self):
-        zoom_factor = self.window.zoomFactor()
-        self.window.setZoomFactor(zoom_factor - 0.1)
-        self.update_zoom_label()
-    
+        zoom_factor = self.zoomFactor()
+        self.setZoomFactor(zoom_factor - 0.1)
+
     def scale_page_reset(self):
-        self.window.setZoomFactor(1)
-        self.update_zoom_label()
+        self.setZoomFactor(1)
     
     def update_engine_config(self):
-        settings = self.window.settings()
+        settings = self.settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled,
                              current_settings["javascript_enabled"])
         settings.setFontSize(QWebEngineSettings.FontSize.DefaultFontSize,
@@ -230,6 +174,9 @@ class ManageBookmarksDialog(QDialog):
         self.temp_bookmarks = []
         for name, url in passed_bookmarks.items():
             self.temp_bookmarks.append({'name':name, 'url':url})
+        
+        # Create a deep copy of the original bookmarks to compare it to the new ones
+        self.bookmarks_reference = copy.deepcopy(self.temp_bookmarks)
 
         self.init_ui()
 
@@ -302,12 +249,11 @@ class ManageBookmarksDialog(QDialog):
         self.setLayout(layout)
     
     def load_bookmark_to_inputs(self, row):
-        """Switches the editor to show the data for the selected row."""
         # Block signals so setting the text doesn't trigger sync_data_live
         self.name_lineedit.blockSignals(True)
         self.url_lineedit.blockSignals(True)
         
-        if row >= 0:
+        if row >= 0 and row < len(self.temp_bookmarks):
             bm = self.temp_bookmarks[row]
             self.name_lineedit.setText(bm['name'])
             self.url_lineedit.setText(bm['url'])
@@ -323,7 +269,6 @@ class ManageBookmarksDialog(QDialog):
         self.url_lineedit.blockSignals(False)
 
     def sync_data_live(self):
-        """Updates the internal list and the Sidebar List UI as the user types."""
         row = self.list_widget.currentRow()
         if row >= 0:
             new_name = self.name_lineedit.text()
@@ -516,6 +461,7 @@ class BrowserWindow(QMainWindow):
         # Bottom bar
         self.page_progressbar = QProgressBar()
         self.page_progressbar.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.page_progressbar.setVisible(False)
         self.page_progressbar.setFixedWidth(200)
         self.page_progressbar.setValue(0)
         bottom_bar_layout.addWidget(self.page_progressbar)
@@ -565,27 +511,25 @@ class BrowserWindow(QMainWindow):
             bookmarks_layout.addWidget(bookmark_btn)
 
         bookmarks_layout.addStretch(1)
-
-        print("Bookmark bar initialized with bookmarks:", bookmark_map.keys())
     
     def init_web_engine(self):
         # Web Engine
-        self.web_widget = QWebEngineView()
-        self.web_engine = WebEngine(self.web_widget,
-                                    self.url_bar,
-                                    self.prev_page_btn,
-                                    self.next_page_btn,
-                                    self.reload_page_btn,
-                                    self.page_progressbar,
-                                    self.zoom_factor_label)
-        self.web_widget.urlChanged.connect(self.web_engine.update_url_bar)
-        self.web_widget.loadProgress.connect(self.web_engine.update_page_progress)
-        self.web_widget.loadFinished.connect(self.web_engine.page_load_finished)
-        self.layout.addWidget(self.web_widget, 2, 0)
+        self.web_engine = BetterWebEngine(self)
+        self.web_engine.loadProgress.connect(self.update_progressbar)
+        self.web_engine.loadFinished.connect(self.page_load_finished)
+        self.web_engine.loadStarted.connect(self.page_load_started)
+        self.web_engine.urlChanged.connect(self.update_urlbar_content)
+        self.update_nav_btn_status()
+        self.update_urlbar_content()
+        self.layout.addWidget(self.web_engine, 2, 0)
 
     def request_load_page_from_urlbar(self):
         url = self.url_bar.text()
         self.web_engine.load_page(url)
+
+    def update_urlbar_content(self):
+        engine_url = self.web_engine.url().toString()
+        self.url_bar.setText(engine_url)
     
     def request_load_page(self, url):
         self.web_engine.load_page(url)
@@ -597,19 +541,50 @@ class BrowserWindow(QMainWindow):
             self.web_engine.reload_page()
     
     def request_back_page(self):
-        self.web_engine.back_page()
+        self.web_engine.history().back()
+        self.update_nav_btn_status()
 
     def request_next_page(self):
-        self.web_engine.next_page()
+        self.web_engine.history().forward()
+        self.update_nav_btn_status()
+    
+    def update_progressbar(self, prog):
+        self.page_progressbar.setValue(prog)
+    
+    def page_load_finished(self):
+        self.web_engine.page_is_loading = False
+        self.page_progressbar.setVisible(False)
+        self.update_nav_btn_status()
+    
+    def page_load_started(self):
+        self.page_progressbar.setVisible(True)
+
+    def update_nav_btn_status(self):
+        # Enable / Disable back and forward buttons
+        self.prev_page_btn.setEnabled(self.web_engine.history().canGoBack())
+        self.next_page_btn.setEnabled(self.web_engine.history().canGoForward())
+
+        # Update reload / stop button
+        if self.web_engine.page_is_loading:
+            self.reload_page_btn.setIcon(qta.icon("ei.remove"))
+        else:
+            self.reload_page_btn.setIcon(qta.icon("fa6s.arrow-rotate-right"))
     
     def request_scale_page_up(self):
         self.web_engine.scale_page_up()
+        zoom_string = str(round(self.web_engine.zoomFactor() * 100)) + "%"
+        self.zoom_factor_label.setText(zoom_string)
     
     def request_scale_page_down(self):
         self.web_engine.scale_page_down()
+        zoom_string = str(round(self.web_engine.zoomFactor() * 100)) + "%"
+        self.zoom_factor_label.setText(zoom_string)
+        
     
     def request_scale_page_reset(self):
         self.web_engine.scale_page_reset()
+        zoom_string = str(round(self.web_engine.zoomFactor() * 100)) + "%"
+        self.zoom_factor_label.setText(zoom_string)
 
     def get_cur_theme_dark_light(self):
         if current_settings["theme"] != "Automatic":
@@ -647,12 +622,12 @@ class BrowserWindow(QMainWindow):
         form_layout.addRow(title_label)
 
         name_lineedit = QLineEdit()
-        name_lineedit.setText(self.web_widget.title())
+        name_lineedit.setText(self.web_engine.title())
         name_lineedit.setMinimumWidth(200)
         form_layout.addRow("Bookmark name: ", name_lineedit)
 
         url_lineedit = QLineEdit()
-        url_lineedit.setText(self.web_widget.url().toString())
+        url_lineedit.setText(self.web_engine.url().toString())
         url_lineedit.setMinimumWidth(200)
         form_layout.addRow("Bookmark URL: ", url_lineedit)
 
@@ -681,6 +656,11 @@ class BrowserWindow(QMainWindow):
         dlg = ManageBookmarksDialog(self, current_bookmarks)
 
         if dlg.exec():
+            if dlg.temp_bookmarks == dlg.bookmarks_reference:
+                return
+            
+            QMessageBox.information(self, "Changed bookmarks", "Bookmarks will refresh correctly after the program is restarted.")
+
             updated_bookmarks = {b['name']: b['url'] for b in dlg.temp_bookmarks}
         
             current_bookmarks = updated_bookmarks
