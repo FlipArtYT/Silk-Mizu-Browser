@@ -128,6 +128,13 @@ class BetterWebEngine(QWebEngineView):
         self.page_is_loading = True
         self.reload()
     
+    def stop_page(self):
+        self.page_is_loading = False
+        self.stop()
+    
+    def page_load_finished(self):
+        self.page_is_loading = False
+    
     def valid_url(self, url):
         # Regex for standard http/https URLs and file paths
         regex = re.compile(
@@ -441,6 +448,13 @@ class BrowserWindow(QMainWindow):
         self.load_btn.clicked.connect(self.request_load_page_from_urlbar)
         controls_layout.addWidget(self.load_btn)
 
+        self.add_tab_btn = QPushButton()
+        self.add_tab_btn.setIcon(qta.icon("fa6s.plus", color=icon_color))
+        self.add_tab_btn.setProperty("class", "navbtns")
+        self.add_tab_btn.setStyleSheet("padding: 8px;")
+        self.add_tab_btn.clicked.connect(self.create_new_tab)
+        controls_layout.addWidget(self.add_tab_btn)
+
         self.add_to_bookmarks_btn = QPushButton()
         self.add_to_bookmarks_btn.setIcon(qta.icon("fa5s.star", color=icon_color))
         self.add_to_bookmarks_btn.setProperty("class", "navbtns")
@@ -513,77 +527,117 @@ class BrowserWindow(QMainWindow):
         bookmarks_layout.addStretch(1)
     
     def init_web_engine(self):
-        # Web Engine
-        self.web_engine = BetterWebEngine(self)
-        self.web_engine.loadProgress.connect(self.update_progressbar)
-        self.web_engine.loadFinished.connect(self.page_load_finished)
-        self.web_engine.loadStarted.connect(self.page_load_started)
-        self.web_engine.urlChanged.connect(self.update_urlbar_content)
-        self.update_nav_btn_status()
+        # Tab bar
+        self.tab_list = []
+        self.web_tabs = QTabWidget()
+        self.web_tabs.setTabsClosable(True)
+        self.web_tabs.setTabShape(QTabWidget.TabShape.Rounded)
+        self.web_tabs.currentChanged.connect(self.update_tab_info)
+        self.web_tabs.tabCloseRequested.connect(self.remove_web_tab)
+        self.layout.addWidget(self.web_tabs, 2, 0)
+        
+        # Add start tab
+        self.create_new_tab()
+
+    def update_tab_info(self):
         self.update_urlbar_content()
-        self.layout.addWidget(self.web_engine, 2, 0)
+        self.update_nav_btn_status()
+        self.update_tab_title()
+    
+    def create_new_tab(self):
+        # Web Engine
+        new_tab_index = len(self.tab_list)
+        self.tab_list.append(BetterWebEngine(self))
+
+        self.tab_list[new_tab_index].loadProgress.connect(self.update_progressbar)
+        self.tab_list[new_tab_index].loadFinished.connect(self.page_load_finished)
+        self.tab_list[new_tab_index].loadFinished.connect(self.tab_list[new_tab_index].page_load_finished)
+        self.tab_list[new_tab_index].loadStarted.connect(self.page_load_started)
+        self.tab_list[new_tab_index].urlChanged.connect(self.update_urlbar_content)
+
+        self.web_tabs.addTab(self.tab_list[new_tab_index], f"{" "*5}New Tab{" "*5}")
+        self.update_urlbar_content()
+        self.update_nav_btn_status()
+    
+    def update_tab_title(self):
+        current_index = self.web_tabs.currentIndex()
+        current_title = self.web_tabs.currentWidget().title()
+        self.web_tabs.setTabText(current_index, f"{" "*3}{current_title[:10]+"..." if len(current_title) > 10 else current_title}{" "*3}")
+        self.web_tabs.setTabIcon(current_index, QIcon(self.web_tabs.currentWidget().icon()))
+        self.web_tabs.setIconSize(QSize(16, 16))
+        self.web_tabs.setTabToolTip(current_index, self.web_tabs.currentWidget().title())
 
     def request_load_page_from_urlbar(self):
         url = self.url_bar.text()
-        self.web_engine.load_page(url)
+        self.web_tabs.currentWidget().load_page(url)
 
     def update_urlbar_content(self):
-        engine_url = self.web_engine.url().toString()
-        self.url_bar.setText(engine_url)
+        current_url = self.web_tabs.currentWidget().url().toString()
+        self.url_bar.setText(current_url)
     
     def request_load_page(self, url):
-        self.web_engine.load_page(url)
+        self.web_tabs.currentWidget().load_page(url)
     
     def request_reload_stop_page(self):
-        if self.web_engine.page_is_loading:
-            self.web_engine.stop_page_load()
+        if self.web_tabs.currentWidget().page_is_loading:
+            self.web_tabs.currentWidget().stop_page()
         else:
-            self.web_engine.reload_page()
+            self.web_tabs.currentWidget().reload_page()
+        
+        self.update_nav_btn_status()
     
     def request_back_page(self):
-        self.web_engine.history().back()
+        self.web_tabs.currentWidget().history().back()
         self.update_nav_btn_status()
 
     def request_next_page(self):
-        self.web_engine.history().forward()
+        self.web_tabs.currentWidget().history().forward()
         self.update_nav_btn_status()
     
     def update_progressbar(self, prog):
-        self.page_progressbar.setValue(prog)
-    
+        if self.web_tabs.currentWidget() == self.tab_list[self.web_tabs.currentIndex()]:
+            self.page_progressbar.setValue(prog)
+
     def page_load_finished(self):
-        self.web_engine.page_is_loading = False
+        self.web_tabs.currentWidget().page_is_loading = False
         self.page_progressbar.setVisible(False)
         self.update_nav_btn_status()
+        self.update_urlbar_content()
+        self.update_tab_info()
     
     def page_load_started(self):
         self.page_progressbar.setVisible(True)
 
     def update_nav_btn_status(self):
         # Enable / Disable back and forward buttons
-        self.prev_page_btn.setEnabled(self.web_engine.history().canGoBack())
-        self.next_page_btn.setEnabled(self.web_engine.history().canGoForward())
+        self.prev_page_btn.setEnabled(self.web_tabs.currentWidget().history().canGoBack())
+        self.next_page_btn.setEnabled(self.web_tabs.currentWidget().history().canGoForward())
 
         # Update reload / stop button
-        if self.web_engine.page_is_loading:
+        if self.web_tabs.currentWidget().page_is_loading:
             self.reload_page_btn.setIcon(qta.icon("ei.remove"))
         else:
             self.reload_page_btn.setIcon(qta.icon("fa6s.arrow-rotate-right"))
     
+    def remove_web_tab(self, index):
+        tab_amount = self.web_tabs.count()
+        if index >= 0 and tab_amount > 1:
+            self.web_tabs.removeTab(index)
+            del self.tab_list[index]
+    
     def request_scale_page_up(self):
-        self.web_engine.scale_page_up()
-        zoom_string = str(round(self.web_engine.zoomFactor() * 100)) + "%"
+        self.web_tabs.currentWidget().scale_page_up()
+        zoom_string = str(round(self.web_tabs.currentWidget().zoomFactor() * 100)) + "%"
         self.zoom_factor_label.setText(zoom_string)
     
     def request_scale_page_down(self):
-        self.web_engine.scale_page_down()
-        zoom_string = str(round(self.web_engine.zoomFactor() * 100)) + "%"
+        self.web_tabs.currentWidget().scale_page_down()
+        zoom_string = str(round(self.web_tabs.currentWidget().zoomFactor() * 100)) + "%"
         self.zoom_factor_label.setText(zoom_string)
-        
     
     def request_scale_page_reset(self):
-        self.web_engine.scale_page_reset()
-        zoom_string = str(round(self.web_engine.zoomFactor() * 100)) + "%"
+        self.web_tabs.currentWidget().scale_page_reset()
+        zoom_string = str(round(self.web_tabs.currentWidget().zoomFactor() * 100)) + "%"
         self.zoom_factor_label.setText(zoom_string)
 
     def get_cur_theme_dark_light(self):
@@ -817,7 +871,8 @@ class BrowserWindow(QMainWindow):
         urledit.setEnabled(enable)
     
     def update_web_engine(self):
-        self.web_engine.update_engine_config()
+        for tab in self.tab_list:
+            tab.update_engine_config()
         
     def about_dialog(self):
         dlg = QDialog(self)
