@@ -33,6 +33,7 @@ python3 main.py
 ```
 ## 💻 Currently working on
 - improving website tab system and tab bar positioning at the top
+- AI page summary, "Explain selected text with AI"
 
 ## 👥 Contributing
 Feel free to open issues and create pull requests. Silk Project members can get direct access when requested.
