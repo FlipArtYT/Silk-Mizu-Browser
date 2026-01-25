@@ -3,6 +3,7 @@ import os
 import json
 import re
 import copy
+import datetime
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -27,6 +28,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QSizePolicy,
     QTextEdit,
+    QFileDialog
 )
 from PyQt6.QtCore import Qt, QUrl, QSize, pyqtSlot, pyqtSignal, QThreadPool, QRunnable, QObject
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -42,7 +44,8 @@ CONFIG_PATH = os.path.join(SCRIPT_DIR, "config", "settings.json")
 BOOKMARKS_PATH = os.path.join(SCRIPT_DIR, "config", "bookmarks.json")
 START_PAGE_PATH = os.path.join(SCRIPT_DIR, "assets", "Silk-Start", "start", "v1.1.1", "seperate", "index.html")
 AI_SYSPROMPT_PATH = os.path.join(SCRIPT_DIR, "config", "sysprompt.txt")
-VERSION_NUMBER = "0.2.5"
+SUM_AI_MODEL = {"name":"lfm2.5-thinking:1.2b", "size":"700MB"}
+VERSION_NUMBER = "0.2.9"
 SEARCH_ENGINE_SEARCH_QUERIES = {
     "Google":"https://www.google.com/search?q=",
     "DuckDuckGo":"https://duckduckgo.com/?q=",
@@ -111,15 +114,33 @@ else:
 with open(AI_SYSPROMPT_PATH, 'r') as f:
     ai_system_prompt = f.read()
 
+class BetterWebEngineSignals(QObject):
+    sum_selected_with_ai = pyqtSignal(str)
+    sum_page_with_ai = pyqtSignal()
+
 class BetterWebEngine(QWebEngineView):
     def __init__(self, parent):
         super().__init__(parent)
         self.page_is_loading = False
+        self.signals = BetterWebEngineSignals()
+
         self.init_engine()
         self.update_engine_config()
     
     def init_engine(self):
         self.load_page(current_settings["start_page_url"])
+
+    def contextMenuEvent(self, event):
+        menu = self.createStandardContextMenu()
+        menu.addSeparator()
+
+        sum_selected_with_ai_action = menu.addAction("Summarize selected text with AI")
+        sum_selected_with_ai_action.triggered.connect(self.prepare_sum_selected_with_ai)
+
+        sum_page_with_ai_action = menu.addAction("Summarize page with AI")
+        sum_page_with_ai_action.triggered.connect(lambda: self.signals.sum_page_with_ai.emit())
+
+        menu.exec(event.globalPos())
 
     def load_page(self, url):
         # Load URL if valid, else use the default search engine
@@ -170,6 +191,12 @@ class BetterWebEngine(QWebEngineView):
 
     def scale_page_reset(self):
         self.setZoomFactor(1)
+
+    def prepare_sum_selected_with_ai(self):
+        selected_text = self.selectedText().strip()
+        
+        if selected_text:
+            self.signals.sum_selected_with_ai.emit(selected_text)
     
     def update_engine_config(self):
         settings = self.settings()
@@ -309,14 +336,14 @@ class ManageBookmarksDialog(QDialog):
             self.temp_bookmarks.pop(row)
             self.list_widget.takeItem(row)
 
-class InstallerSignals(QObject):
+class InstallWorkerSignals(QObject):
     installation_complete = pyqtSignal()
 
 class InstallWorker(QRunnable):
     def __init__(self, model_name):
         super().__init__()
         self.model_name = model_name
-        self.signals = InstallerSignals()
+        self.signals = InstallWorkerSignals()
     
     @pyqtSlot()
     def run(self):
@@ -339,7 +366,7 @@ class AI_SummarizationWorker(QRunnable):
     def run(self):
         print("Summarizing page content...")
         stream = ollama.chat(
-            model='lfm2.5-thinking:1.2b',
+            model=SUM_AI_MODEL["name"],
             messages=[
                 {"role": "system", "content": ai_system_prompt},
                 {"role": "user", "content": self.text},
@@ -376,6 +403,11 @@ class AI_Sidebar(QWidget):
         self.output_textedit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.layout.addWidget(self.output_textedit)
 
+        self.download_chat_btn = QPushButton("Download")
+        self.download_chat_btn.setIcon(qta.icon("fa6s.download", color=self.parent().get_contrast_color_from_theme()))
+        self.download_chat_btn.clicked.connect(self.download_chat_dlg)
+        self.input_controls_layout.addWidget(self.download_chat_btn)
+
         self.clear_btn = QPushButton("Clear")
         self.clear_btn.setIcon(qta.icon("fa6s.trash", color=self.parent().get_contrast_color_from_theme()))
         self.clear_btn.clicked.connect(self.clear_output)
@@ -388,11 +420,11 @@ class AI_Sidebar(QWidget):
     
     def send_webpage(self, prompt):
         prompt = prompt.strip()
-        self.messages.append({"role": "User", "content": f"{prompt[:100]}..."})
+        self.messages.append({"role": "User", "content": f"[Sum]: {prompt[:400]}..."})
         self.update_output()
 
         # Start AI worker
-        worker = AI_SummarizationWorker(prompt)
+        worker = AI_SummarizationWorker(f"Summarize this text the way your system prompt intended to:\"{prompt}\"")
         worker.signals.chunk_received.connect(self.handle_chunk)
         worker.signals.finished.connect(self.summarization_complete)
 
@@ -404,7 +436,7 @@ class AI_Sidebar(QWidget):
     
     def update_output(self):
         self.output_textedit.clear()
-        
+
         formatted_output = ""
         for message in self.messages:
             formatted_output += f"**{message["role"]}:**  {message["content"]}\n\n"
@@ -421,6 +453,24 @@ class AI_Sidebar(QWidget):
     
     def summarization_complete(self):
         self.update_output()
+
+    def download_chat_dlg(self):
+        chat_content = self.output_textedit.toMarkdown()
+        time_now = datetime.datetime.now()
+        time_formatted = time_now.strftime("%H:%M-%d-%m-%Y")
+        file_name = f"chat-{time_formatted}.txt"
+
+        if not chat_content:
+            return
+        
+        dir_name = QFileDialog.getExistingDirectory(self, "Select a Directory")
+        file_path = os.path.join(dir_name, file_name)
+
+        if os.path.exists(file_path):
+            QMessageBox.critical(self, "Cannot write file", f"The file {file_name} already exists in the selected directory.")
+        
+        with open(file_path, "w") as f:
+            f.write(chat_content)
 
 class BrowserWindow(QMainWindow):
     def __init__(self):
@@ -461,7 +511,7 @@ class BrowserWindow(QMainWindow):
         # File Menu
         settingsAction = fileMenu.addAction("Program Settings")
         settingsAction.triggered.connect(self.settings_dialog)
-        settingsAction.setShortcut(QKeySequence("Ctrl + s"))
+        settingsAction.setShortcut(QKeySequence("Ctrl + ,"))
         fileMenu.addAction(settingsAction)
 
         exitAction = fileMenu.addAction("Quit")
@@ -694,9 +744,19 @@ class BrowserWindow(QMainWindow):
         self.ai_sidebar.setVisible(not is_visible)
     
     def summarize_current_page_ai(self):
+        if not current_settings["ai_summarization_enabled"]:
+            return
+        
         self.ai_sidebar.setVisible(True)
         current_page = self.web_tabs.currentWidget()
         current_page.page().toPlainText(self.ai_sidebar.send_webpage)
+    
+    def summarize_selected_with_ai(self, selected_text):
+        if not current_settings["ai_summarization_enabled"]:
+            return
+        
+        self.ai_sidebar.setVisible(True)
+        self.ai_sidebar.send_webpage(selected_text)
 
     def init_web_engine(self):
         # Tab bar
@@ -726,6 +786,8 @@ class BrowserWindow(QMainWindow):
         self.tab_list[new_tab_index].loadFinished.connect(self.tab_list[new_tab_index].page_load_finished)
         self.tab_list[new_tab_index].loadStarted.connect(self.page_load_started)
         self.tab_list[new_tab_index].urlChanged.connect(self.update_urlbar_content)
+        self.tab_list[new_tab_index].signals.sum_selected_with_ai.connect(self.summarize_selected_with_ai)
+        self.tab_list[new_tab_index].signals.sum_page_with_ai.connect(self.summarize_current_page_ai)
 
         self.web_tabs.addTab(self.tab_list[new_tab_index], "New Tab")
         self.web_tabs.setCurrentIndex(new_tab_index)
@@ -992,13 +1054,13 @@ class BrowserWindow(QMainWindow):
 
         raw_models = ollama.list()
         ollama_model_names = [m.model for m in raw_models.models]
-        sum_model_installed = 'lfm2.5-thinking:1.2b' in ollama_model_names
+        sum_model_installed = SUM_AI_MODEL["name"] in ollama_model_names
 
         install_model_btn = QPushButton()
 
         if not sum_model_installed:
-            install_model_btn.setText("Install (731MB)")
-            install_model_btn.setIcon(qta.icon("fa6s.download"))
+            install_model_btn.setText(f"Install ({SUM_AI_MODEL["size"]})")
+            install_model_btn.setIcon(qta.icon("fa6s.download", color=self.get_contrast_color_from_theme()))
         else:
             install_model_btn.setText("Model Installed")
             install_model_btn.setIcon(qta.icon("fa6s.check", color=self.get_contrast_color_from_theme()))
@@ -1055,6 +1117,9 @@ class BrowserWindow(QMainWindow):
             self.ai_sidebar_btn.setVisible(summarize_ai_enabled)
             self.aiMenu.setEnabled(summarize_ai_enabled)
 
+            if self.ai_sidebar.isVisible():
+                self.ai_sidebar.setVisible(summarize_ai_enabled)
+
             self.update_web_engine()
 
             # Prepare settings.json
@@ -1085,7 +1150,7 @@ class BrowserWindow(QMainWindow):
         install_button.setIcon(qta.icon("fa6s.spinner", color=self.get_contrast_color_from_theme(), animation=animation))
 
         self.threadpool = QThreadPool()
-        worker = InstallWorker("lfm2.5-thinking:1.2b")
+        worker = InstallWorker(SUM_AI_MODEL["name"])
         worker.signals.installation_complete.connect(lambda: self.model_installation_complete(install_button))
         self.threadpool.start(worker)
     
