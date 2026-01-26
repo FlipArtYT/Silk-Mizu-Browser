@@ -45,7 +45,7 @@ BOOKMARKS_PATH = os.path.join(SCRIPT_DIR, "config", "bookmarks.json")
 START_PAGE_PATH = os.path.join(SCRIPT_DIR, "assets", "Silk-Start", "start", "v1.1.1", "seperate", "index.html")
 AI_SYSPROMPT_PATH = os.path.join(SCRIPT_DIR, "config", "sysprompt.txt")
 SUM_AI_MODEL = {"name":"lfm2.5-thinking:1.2b", "size":"700MB"}
-VERSION_NUMBER = "0.2.9"
+VERSION_NUMBER = "0.2.91"
 SEARCH_ENGINE_SEARCH_QUERIES = {
     "Google":"https://www.google.com/search?q=",
     "DuckDuckGo":"https://duckduckgo.com/?q=",
@@ -68,10 +68,10 @@ default_settings = {
 }
 
 current_bookmarks = {}
-default_bookmarks = {
-    "Google":"https://google.com/",
-    "Wikipedia":"https://wikipedia.org/"
-}
+default_bookmarks = {}
+
+# Disable Chromium debug logs
+os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-logging"
 
 # Load settings.json
 if os.path.exists(CONFIG_PATH):
@@ -128,7 +128,11 @@ class BetterWebEngine(QWebEngineView):
         self.update_engine_config()
     
     def init_engine(self):
-        self.load_page(current_settings["start_page_url"])
+        # Check if start page exists
+        if os.path.exists(START_PAGE_PATH):
+            self.load_page(current_settings["start_page_url"])
+        else:
+            self.load_page(SEARCH_ENGINE_SEARCH_QUERIES.get(current_settings["search_engine"]))
 
     def contextMenuEvent(self, event):
         menu = self.createStandardContextMenu()
@@ -487,6 +491,7 @@ class BrowserWindow(QMainWindow):
         # Initialize whole UI
         self.init_menu_bar()
         self.init_control_ui()
+        self.init_bookmark_bar()
         self.init_ai_sidebar()
         self.init_web_engine()
 
@@ -494,6 +499,9 @@ class BrowserWindow(QMainWindow):
         widget = QWidget()
         widget.setLayout(self.layout)
         self.setCentralWidget(widget)
+
+        if not os.path.exists(START_PAGE_PATH):
+            QMessageBox.critical(self, "Start page not found", "The Silk Start submodule was not found. Make sure you follow the cloning instructions carefully.")
     
     def init_menu_bar(self):
         # Add menu bar
@@ -597,6 +605,7 @@ class BrowserWindow(QMainWindow):
         # Browser main controls
         icon_color = self.get_contrast_color_from_theme()
 
+        # Left side: Basic navigation (Back, Forward page)
         self.ai_sidebar_btn = QPushButton()
         self.ai_sidebar_btn.setIcon(qta.icon("msc.layout-sidebar-left", color=icon_color))
         self.ai_sidebar_btn.setProperty("class", "navbtns")
@@ -626,6 +635,7 @@ class BrowserWindow(QMainWindow):
         self.reload_page_btn.clicked.connect(self.request_reload_stop_page)
         controls_layout.addWidget(self.reload_page_btn)
 
+        # Middle: URL Bar
         self.url_bar = QLineEdit()
         self.url_bar.setObjectName("url_bar")
         self.url_bar.setStyleSheet("padding: 8px;")
@@ -633,6 +643,7 @@ class BrowserWindow(QMainWindow):
         self.url_bar.returnPressed.connect(self.request_load_page_from_urlbar)
         controls_layout.addWidget(self.url_bar)
 
+        # Right: Everything else
         self.load_btn = QPushButton("Go")
         self.load_btn.setIcon(qta.icon("mdi.arrow-right-bold-box", color=icon_color))
         self.load_btn.setProperty("class", "navbtns")
@@ -669,9 +680,6 @@ class BrowserWindow(QMainWindow):
         self.settings_btn.setStyleSheet("padding: 8px;")
         self.settings_btn.clicked.connect(self.settings_dialog)
         controls_layout.addWidget(self.settings_btn)
-
-        # Bookmark bar
-        self.init_bookmark_bar()
 
         # Bottom bar
         self.page_progressbar = QProgressBar()
@@ -911,12 +919,12 @@ class BrowserWindow(QMainWindow):
         form_layout.addRow(title_label)
 
         name_lineedit = QLineEdit()
-        name_lineedit.setText(self.web_engine.title())
+        name_lineedit.setText(self.web_tabs.currentWidget().title())
         name_lineedit.setMinimumWidth(200)
         form_layout.addRow("Bookmark name: ", name_lineedit)
 
         url_lineedit = QLineEdit()
-        url_lineedit.setText(self.web_engine.url().toString())
+        url_lineedit.setText(self.web_tabs.currentWidget().url().toString())
         url_lineedit.setMinimumWidth(200)
         form_layout.addRow("Bookmark URL: ", url_lineedit)
 
