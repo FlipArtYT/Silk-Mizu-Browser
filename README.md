@@ -14,6 +14,7 @@ Simple and lightweight PyQT6 browser for Silk and Linux / Windows / Mac computer
 - Silk-Start support
 - Easy to use Tab system
 - AI webpage summarization (optional and local, without data collection)
+- Download Manager
 
 ## ⚙️ Requirements
 - `pyqt6` (pip)
@@ -28,6 +29,11 @@ A normal git clone will result into missing submodules. Instead use this command
 ```
 git clone --recursive https://github.com/Silk-Project/Silk-Mizu-Browser.git
 ```
+...or initialize the submodules later:
+```
+git submodule update --init --recursive
+```
+
 
 ## 🚀 Running the program
 To use this program, simply execute the main.py file directly via python3.
@@ -38,6 +44,7 @@ python3 main.py
 - improving website tab system and tab bar positioning at the top
 - "Explain selected text with AI"
 - Reader view
+- Better overview of current downloads so it can't infinitely stack up in the download menu
 
 ## 👥 Contributing
 Feel free to open issues and create pull requests.
