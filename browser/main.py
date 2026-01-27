@@ -919,7 +919,10 @@ class BrowserWindow(QMainWindow):
         tab_amount = self.web_tabs.count()
         if index >= 0 and tab_amount > 1:
             self.web_tabs.removeTab(index)
+            self.tab_list[index].deleteLater()
             del self.tab_list[index]
+            
+            self.update_tab_info()
     
     def update_tab_titles(self):
         for tab_index in range(self.web_tabs.count()):
