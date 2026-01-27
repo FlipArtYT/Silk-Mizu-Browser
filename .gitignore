@@ -213,5 +213,8 @@ __marimo__/
 settings.json
 bookmarks.json
 
+# Dirs
+Downloads/
+
 # Test Scripts
 test_scripts/

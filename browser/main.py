@@ -28,11 +28,13 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QSizePolicy,
     QTextEdit,
-    QFileDialog
+    QFileDialog,
+    QMenu,
+    QWidgetAction
 )
-from PyQt6.QtCore import Qt, QUrl, QSize, pyqtSlot, pyqtSignal, QThreadPool, QRunnable, QObject
+from PyQt6.QtCore import Qt, QUrl, QSize, pyqtSlot, pyqtSignal, QThreadPool, QRunnable, QObject, QDir
 from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWebEngineCore import QWebEngineSettings
+from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEngineDownloadRequest
 from PyQt6.QtGui import QPixmap, QAction, QKeySequence, QIcon
 import qtawesome as qta
 import qdarktheme
@@ -44,6 +46,7 @@ CONFIG_PATH = os.path.join(SCRIPT_DIR, "config", "settings.json")
 BOOKMARKS_PATH = os.path.join(SCRIPT_DIR, "config", "bookmarks.json")
 START_PAGE_PATH = os.path.join(SCRIPT_DIR, "assets", "Silk-Start", "start", "v1.1.1", "seperate", "index.html")
 AI_SYSPROMPT_PATH = os.path.join(SCRIPT_DIR, "config", "sysprompt.txt")
+DOWNLOAD_PATH = os.path.join(SCRIPT_DIR, "Downloads")
 SUM_AI_MODEL = {"name":"lfm2.5-thinking:1.2b", "size":"700MB"}
 VERSION_NUMBER = "0.2.91"
 SEARCH_ENGINE_SEARCH_QUERIES = {
@@ -61,6 +64,7 @@ default_settings = {
     "theme":"Dark",
     "bottom_bar_visible":False,
     "go_button_visible":False,
+    "download_warnings":True,
     "javascript_enabled":True,
     "default_font_size":16,
     "scrollbars_enabled":True,
@@ -210,6 +214,105 @@ class BetterWebEngine(QWebEngineView):
                              current_settings["default_font_size"])
         settings.setAttribute(QWebEngineSettings.WebAttribute.ShowScrollBars,
                                 current_settings["scrollbars_enabled"])
+
+class DownloadManager(QMenu):
+    def __init__(self):
+        super().__init__()
+        self.downloads = {}  # Store active download objects
+        self.init_ui()
+    
+    def init_ui(self):
+        title_container = QWidget()
+        title_layout = QVBoxLayout()
+        title_label = QLabel("Downloads")
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_label.setStyleSheet("padding: 0 10px 0 10px; font-weight: bold")
+        title_layout.addWidget(title_label)
+
+        title_container.setLayout(title_layout)
+
+        widget_action = QWidgetAction(self)
+        widget_action.setDefaultWidget(title_container)
+
+        self.addAction(widget_action)
+
+    def add_download(self, download: QWebEngineDownloadRequest):
+        # Download info
+        download_filename = download.suggestedFileName()
+
+        if not os.path.exists(DOWNLOAD_PATH):
+            os.makedirs(DOWNLOAD_PATH)
+
+        download.setDownloadDirectory(DOWNLOAD_PATH)
+        download.setDownloadFileName(download_filename)
+        
+        # Create layouts for the menu entry
+        layout = QVBoxLayout()
+        container = QWidget()
+
+        # Download UI elements
+        label = QLabel(f"Downloading: {self.short_if_needed(download_filename)}")
+        label.setToolTip(download_filename)
+        progress = QProgressBar()
+        stop_btn = QPushButton()
+        stop_btn.setIcon(qta.icon("ei.remove"))
+        stop_btn.clicked.connect(lambda: download.cancel())
+        
+        layout.addWidget(label)
+
+        # Bottom layout (progress bar, button)
+        bottom_layout = QHBoxLayout()
+        layout.addLayout(bottom_layout)
+
+        bottom_layout.addWidget(progress)
+        bottom_layout.addWidget(stop_btn)
+
+        container.setLayout(layout)
+
+        widget_action = QWidgetAction(self)
+        widget_action.setDefaultWidget(container)
+
+        self.addAction(widget_action)
+        
+        # 3. Connect signals to track progress and completion
+        download.receivedBytesChanged.connect(
+            lambda: self.update_progress(download, progress)
+        )
+        download.isFinishedChanged.connect(
+            lambda: self.download_finished(download, label, progress, stop_btn)
+        )
+        
+        # 4. Start the download
+        download.accept()
+        self.downloads[download.id()] = download
+
+    def update_progress(self, download, progress_bar):
+        if download.totalBytes() > 0:
+            percent = int((download.receivedBytes() / download.totalBytes()) * 100)
+            progress_bar.setValue(percent)
+    
+    def short_if_needed(self, download_name):
+        if len(download_name) > 15:
+            return f"{download_name[:15]}..."
+        else:
+            return download_name
+
+    def download_finished(self, download, label, progress_bar, stop_btn):
+        download_filename = download.suggestedFileName()
+        state = download.state()
+        stop_btn.setEnabled(False)
+    
+        if state == QWebEngineDownloadRequest.DownloadState.DownloadCompleted:
+            progress_bar.setValue(100)
+            label.setText(f"Finished: {self.short_if_needed(download_filename)}")
+        
+        elif state == QWebEngineDownloadRequest.DownloadState.DownloadCancelled:
+            label.setText(f"Canceled: {self.short_if_needed(download_filename)}")
+            progress_bar.setEnabled(False)
+        
+        elif state == QWebEngineDownloadRequest.DownloadState.DownloadInterrupted:
+            label.setText(f"Error: {self.short_if_needed(download_filename)}")
+            progress_bar.setStyleSheet("QProgressBar::chunk { background-color: red; }")
 
 class ManageBookmarksDialog(QDialog):
     def __init__(self, parent, passed_bookmarks):
@@ -576,7 +679,7 @@ class BrowserWindow(QMainWindow):
 
         # Help Menu
         documentationAction = QAction("Project Page", self)
-        documentationAction.triggered.connect(lambda: self.web_engine.load_page("https://github.com/FlipArtYT/Silk-Mizu-Browser/"))
+        documentationAction.triggered.connect(lambda: self.web_engine.load_page("https://github.com/Silk-Project/Silk-Mizu-Browser/"))
         helpMenu.addAction(documentationAction)
 
         aboutAction = helpMenu.addAction("About")
@@ -659,6 +762,14 @@ class BrowserWindow(QMainWindow):
         self.add_tab_btn.clicked.connect(self.create_new_tab)
         controls_layout.addWidget(self.add_tab_btn)
 
+        self.download_widget = DownloadManager()
+        self.downloads_btn = QPushButton()
+        self.downloads_btn.setIcon(qta.icon("ei.download", color=icon_color))
+        self.downloads_btn.setStyleSheet("padding: 8px;")
+        self.downloads_btn.setVisible(False)
+        self.downloads_btn.clicked.connect(self.show_download_menu)
+        controls_layout.addWidget(self.downloads_btn)
+
         self.ai_summarize_btn = QPushButton()
         self.ai_summarize_btn.setIcon(qta.icon("ph.sparkle-fill", color=icon_color))
         self.ai_summarize_btn.setProperty("class", "navbtns")
@@ -734,7 +845,8 @@ class BrowserWindow(QMainWindow):
             bookmarks_layout.addWidget(bookmark_btn)
 
         bookmarks_layout.addStretch(1)
-
+    
+    # AI sidebar
     def init_ai_sidebar(self):
         # Create middle layout
         self.middle_layout = QHBoxLayout()
@@ -766,6 +878,7 @@ class BrowserWindow(QMainWindow):
         self.ai_sidebar.setVisible(True)
         self.ai_sidebar.send_webpage(selected_text)
 
+    # Website Tabs
     def init_web_engine(self):
         # Tab bar
         self.tab_list = []
@@ -794,12 +907,19 @@ class BrowserWindow(QMainWindow):
         self.tab_list[new_tab_index].loadFinished.connect(self.tab_list[new_tab_index].page_load_finished)
         self.tab_list[new_tab_index].loadStarted.connect(self.page_load_started)
         self.tab_list[new_tab_index].urlChanged.connect(self.update_urlbar_content)
+        self.tab_list[new_tab_index].page().profile().downloadRequested.connect(self.request_download)
         self.tab_list[new_tab_index].signals.sum_selected_with_ai.connect(self.summarize_selected_with_ai)
         self.tab_list[new_tab_index].signals.sum_page_with_ai.connect(self.summarize_current_page_ai)
 
         self.web_tabs.addTab(self.tab_list[new_tab_index], "New Tab")
         self.web_tabs.setCurrentIndex(new_tab_index)
         self.update_tab_info()
+    
+    def remove_web_tab(self, index):
+        tab_amount = self.web_tabs.count()
+        if index >= 0 and tab_amount > 1:
+            self.web_tabs.removeTab(index)
+            del self.tab_list[index]
     
     def update_tab_titles(self):
         for tab_index in range(self.web_tabs.count()):
@@ -810,6 +930,31 @@ class BrowserWindow(QMainWindow):
             self.web_tabs.setIconSize(QSize(16, 16))
             self.web_tabs.setTabToolTip(tab_index, web_engine.title())
 
+    
+    # Download System
+    def show_download_menu(self):
+        button_pos = self.downloads_btn.mapToGlobal(self.downloads_btn.rect().bottomLeft())
+        self.download_widget.exec(button_pos)
+    
+    def request_download(self, download):
+        if current_settings["download_warnings"]:
+            warning_dlg = QMessageBox(self)
+            warning_dlg.setWindowTitle("Download Request")
+            warning_dlg.setText(f"Do you really want to download \"{download.suggestedFileName()}\"?")
+            warning_dlg.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+            warning_dlg.setIcon(QMessageBox.Icon.Warning)
+
+            if warning_dlg.exec() == QMessageBox.StandardButton.Ok:
+                self.download_widget.add_download(download)
+                self.downloads_btn.setVisible(True)
+                self.show_download_menu()
+    
+        else:
+            self.download_widget.add_download(download)
+            self.downloads_btn.setVisible(True)
+            self.show_download_menu()
+
+    # Website content specific functions
     def request_load_page_from_urlbar(self):
         url = self.url_bar.text()
         self.web_tabs.currentWidget().load_page(url)
@@ -817,25 +962,6 @@ class BrowserWindow(QMainWindow):
     def update_urlbar_content(self):
         current_url = self.web_tabs.currentWidget().url().toString()
         self.url_bar.setText(current_url)
-    
-    def request_load_page(self, url):
-        self.web_tabs.currentWidget().load_page(url)
-    
-    def request_reload_stop_page(self):
-        if self.web_tabs.currentWidget().page_is_loading:
-            self.web_tabs.currentWidget().stop_page()
-        else:
-            self.web_tabs.currentWidget().reload_page()
-        
-        self.update_tab_info()
-    
-    def request_back_page(self):
-        self.web_tabs.currentWidget().history().back()
-        self.update_tab_info()
-
-    def request_next_page(self):
-        self.web_tabs.currentWidget().history().forward()
-        self.update_tab_info()
     
     def update_progressbar(self, prog):
         if self.web_tabs.currentWidget() == self.tab_list[self.web_tabs.currentIndex()]:
@@ -862,12 +988,27 @@ class BrowserWindow(QMainWindow):
         else:
             self.reload_page_btn.setIcon(qta.icon("fa6s.arrow-rotate-right"))
     
-    def remove_web_tab(self, index):
-        tab_amount = self.web_tabs.count()
-        if index >= 0 and tab_amount > 1:
-            self.web_tabs.removeTab(index)
-            del self.tab_list[index]
+    # Website navigation
+    def request_back_page(self):
+        self.web_tabs.currentWidget().history().back()
+        self.update_tab_info()
+
+    def request_next_page(self):
+        self.web_tabs.currentWidget().history().forward()
+        self.update_tab_info()
     
+    def request_reload_stop_page(self):
+        if self.web_tabs.currentWidget().page_is_loading:
+            self.web_tabs.currentWidget().stop_page()
+        else:
+            self.web_tabs.currentWidget().reload_page()
+        
+        self.update_tab_info()
+
+    def request_load_page(self, url):
+        self.web_tabs.currentWidget().load_page(url)
+    
+    # Scaling
     def request_scale_page_up(self):
         self.web_tabs.currentWidget().scale_page_up()
         zoom_string = str(round(self.web_tabs.currentWidget().zoomFactor() * 100)) + "%"
@@ -882,13 +1023,14 @@ class BrowserWindow(QMainWindow):
         self.web_tabs.currentWidget().scale_page_reset()
         zoom_string = str(round(self.web_tabs.currentWidget().zoomFactor() * 100)) + "%"
         self.zoom_factor_label.setText(zoom_string)
-
+    
+    # Theme specific functions
     def get_cur_theme_dark_light(self):
         if current_settings["theme"] != "Automatic":
             return current_settings["theme"].lower()
         else:
             return "dark" if darkdetect.isDark() else "light"
-        
+    
     def get_contrast_color_from_theme(self):
         if self.get_cur_theme_dark_light() == "light":
             return "black"
@@ -905,6 +1047,7 @@ class BrowserWindow(QMainWindow):
         self.add_to_bookmarks_btn.setIcon(qta.icon("fa5s.bookmark", color=icon_color))
         self.settings_btn.setIcon(qta.icon("fa5s.cog", color=icon_color))
 
+    # Dialogs
     def add_current_to_bookmarks_dialog(self):
         dlg = QDialog(self)
         dlg.setWindowTitle("Add to Bookmarks")
@@ -1037,6 +1180,15 @@ class BrowserWindow(QMainWindow):
         go_button_visibility_checkbox.setChecked(current_settings["go_button_visible"])
         display_settings_layout.addRow("Show 'Go' button in URL bar: ", go_button_visibility_checkbox)
 
+        # Security settings
+        security_settings = QWidget()
+        security_settings_layout = QFormLayout()
+        security_settings.setLayout(security_settings_layout)
+
+        download_warnings_checkbox = QCheckBox()
+        download_warnings_checkbox.setChecked(current_settings["download_warnings"])
+        security_settings_layout.addRow("Display warning when download is requested: ", download_warnings_checkbox)
+
         # Engine tab settings
         engine_settings = QWidget()
         engine_settings_layout = QFormLayout()
@@ -1086,6 +1238,7 @@ class BrowserWindow(QMainWindow):
         # Add widgets to tab widget
         tabs.addTab(general_settings, "General")
         tabs.addTab(display_settings, "Display")
+        tabs.addTab(security_settings, "Security")
         tabs.addTab(engine_settings, "Engine")
         tabs.addTab(ai_settings, "AI Features")
 
@@ -1105,6 +1258,7 @@ class BrowserWindow(QMainWindow):
             theme = theme_combobox.currentText()
             go_button_visible = go_button_visibility_checkbox.isChecked()
             bottom_bar_visible = bottom_bar_visability_checkbox.isChecked()
+            download_warnings = download_warnings_checkbox.isChecked()
             javascript_enabled = javascript_checkbox.isChecked()
             default_font_size = font_size_spinbox.value()
             default_scrollbars_enabled = scrollbars_enabled_checkbox.isChecked()
@@ -1137,6 +1291,7 @@ class BrowserWindow(QMainWindow):
                 "theme":theme,
                 "bottom_bar_visible":bottom_bar_visible,
                 "go_button_visible":go_button_visible,
+                "download_warnings":download_warnings,
                 "javascript_enabled":javascript_enabled,
                 "default_font_size":default_font_size,
                 "scrollbars_enabled":default_scrollbars_enabled,
