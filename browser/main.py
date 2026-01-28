@@ -884,6 +884,7 @@ class BrowserWindow(QMainWindow):
         self.tab_list = []
         self.web_tabs = QTabWidget()
         self.web_tabs.setTabsClosable(True)
+        self.web_tabs.setIconSize(QSize(16, 16))
         self.web_tabs.setTabShape(QTabWidget.TabShape.Rounded)
         self.web_tabs.currentChanged.connect(self.update_tab_info)
         self.web_tabs.tabCloseRequested.connect(self.remove_web_tab)
@@ -907,6 +908,7 @@ class BrowserWindow(QMainWindow):
         self.tab_list[new_tab_index].loadFinished.connect(self.tab_list[new_tab_index].page_load_finished)
         self.tab_list[new_tab_index].loadStarted.connect(self.page_load_started)
         self.tab_list[new_tab_index].urlChanged.connect(self.update_urlbar_content)
+        self.tab_list[new_tab_index].iconChanged(self.update_tab_info)
         self.tab_list[new_tab_index].page().profile().downloadRequested.connect(self.request_download)
         self.tab_list[new_tab_index].signals.sum_selected_with_ai.connect(self.summarize_selected_with_ai)
         self.tab_list[new_tab_index].signals.sum_page_with_ai.connect(self.summarize_current_page_ai)
@@ -929,11 +931,13 @@ class BrowserWindow(QMainWindow):
             web_engine = self.tab_list[tab_index]
             title = web_engine.title() if web_engine.title() else "New Tab"
             self.web_tabs.setTabText(tab_index, f"{" "*3}{title[:10]+"..." if len(title) > 10 else title}{" "*3}")
-            self.web_tabs.setTabIcon(tab_index, QIcon(web_engine.icon()))
-            self.web_tabs.setIconSize(QSize(16, 16))
             self.web_tabs.setTabToolTip(tab_index, web_engine.title())
 
-    
+            if web_engine.iconUrl().isEmpty():
+                self.web_tabs.setTabIcon(tab_index, qta.icon("fa6s.spinner"))
+            else:
+                self.web_tabs.setTabIcon(tab_index, QIcon(web_engine.icon()))
+
     # Download System
     def show_download_menu(self):
         button_pos = self.downloads_btn.mapToGlobal(self.downloads_btn.rect().bottomLeft())
