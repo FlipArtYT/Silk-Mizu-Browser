@@ -118,15 +118,55 @@ else:
 with open(AI_SYSPROMPT_PATH, 'r') as f:
     ai_system_prompt = f.read()
 
-class BetterWebEngineSignals(QObject):
+class ThemeManager():
+    def __init__(self, applic, theme="dark"):
+        self.applic = applic
+        self.theme = theme
+        self.available_themes = [
+            "light",
+            "dark",
+            "automatic",
+            "legacy"
+        ]
+        self.load_theme(theme)
+    
+    def load_theme(self, theme_input):
+        theme_input = theme_input.strip().lower()
+
+        if theme_input in self.available_themes:
+            if theme_input != "automatic" and theme_input != "legacy":
+                self.applic.setStyleSheet(qdarktheme.load_stylesheet(theme_input))
+
+            elif theme_input == "automatic":
+                system_theme = "dark" if darkdetect.isDark() else "light"
+                self.applic.setStyleSheet(qdarktheme.load_stylesheet(system_theme))
+            
+            elif theme_input == "legacy":
+                self.applic.setStyleSheet("")
+            
+            self.theme = theme_input
+
+        else:
+            print("Theme not found")
+    
+    def get_plain_theme(self):
+        if self.theme != "automatic" and self.theme != "legacy":
+            return self.theme
+        
+        elif self.theme == "automatic":
+            system_theme = "dark" if darkdetect.isDark() else "light"
+            return system_theme
+        
+        elif self.theme == "legacy":
+            return "dark"
+
+class BetterWebEngine(QWebEngineView):
     sum_selected_with_ai = pyqtSignal(str)
     sum_page_with_ai = pyqtSignal()
 
-class BetterWebEngine(QWebEngineView):
     def __init__(self, parent):
         super().__init__(parent)
         self.page_is_loading = False
-        self.signals = BetterWebEngineSignals()
 
         self.init_engine()
         self.update_engine_config()
@@ -146,7 +186,7 @@ class BetterWebEngine(QWebEngineView):
         sum_selected_with_ai_action.triggered.connect(self.prepare_sum_selected_with_ai)
 
         sum_page_with_ai_action = menu.addAction("Summarize page with AI")
-        sum_page_with_ai_action.triggered.connect(lambda: self.signals.sum_page_with_ai.emit())
+        sum_page_with_ai_action.triggered.connect(lambda: self.sum_page_with_ai.emit())
 
         menu.exec(event.globalPos())
 
@@ -204,7 +244,7 @@ class BetterWebEngine(QWebEngineView):
         selected_text = self.selectedText().strip()
         
         if selected_text:
-            self.signals.sum_selected_with_ai.emit(selected_text)
+            self.sum_selected_with_ai.emit(selected_text)
     
     def update_engine_config(self):
         settings = self.settings()
@@ -219,22 +259,6 @@ class DownloadManager(QMenu):
     def __init__(self):
         super().__init__()
         self.downloads = {}  # Store active download objects
-        self.init_ui()
-    
-    def init_ui(self):
-        title_container = QWidget()
-        title_layout = QVBoxLayout()
-        title_label = QLabel("Downloads")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet("padding: 0 10px 0 10px; font-weight: bold")
-        title_layout.addWidget(title_label)
-
-        title_container.setLayout(title_layout)
-
-        widget_action = QWidgetAction(self)
-        widget_action.setDefaultWidget(title_container)
-
-        self.addAction(widget_action)
 
     def add_download(self, download: QWebEngineDownloadRequest):
         # Download info
@@ -443,31 +467,27 @@ class ManageBookmarksDialog(QDialog):
             self.temp_bookmarks.pop(row)
             self.list_widget.takeItem(row)
 
-class InstallWorkerSignals(QObject):
+class InstallWorker(QRunnable):
     installation_complete = pyqtSignal()
 
-class InstallWorker(QRunnable):
     def __init__(self, model_name):
         super().__init__()
         self.model_name = model_name
-        self.signals = InstallWorkerSignals()
     
     @pyqtSlot()
     def run(self):
         print(f"Installing model: {self.model_name}...")
         ollama.pull(self.model_name)
         print("Model installation complete.")
-        self.signals.installation_complete.emit()
+        self.installation_complete.emit()
 
-class WorkerSignals(QObject):
+class AI_SummarizationWorker(QRunnable):
     chunk_received = pyqtSignal(str)
     finished = pyqtSignal()
 
-class AI_SummarizationWorker(QRunnable):
     def __init__(self, text):
         super().__init__()
         self.text = text
-        self.signals = WorkerSignals()
     
     @pyqtSlot()
     def run(self):
@@ -483,9 +503,9 @@ class AI_SummarizationWorker(QRunnable):
 
         for chunk in stream:
             content = chunk['message']['content']
-            self.signals.chunk_received.emit(content)
+            self.chunk_received.emit(content)
         
-        self.signals.finished.emit()
+        self.finished.emit()
 
 class AI_Sidebar(QWidget):
     def __init__(self, parent):
@@ -532,8 +552,8 @@ class AI_Sidebar(QWidget):
 
         # Start AI worker
         worker = AI_SummarizationWorker(f"Summarize this text the way your system prompt intended to:\"{prompt}\"")
-        worker.signals.chunk_received.connect(self.handle_chunk)
-        worker.signals.finished.connect(self.summarization_complete)
+        worker.chunk_received.connect(self.handle_chunk)
+        worker.finished.connect(self.summarization_complete)
 
         QThreadPool.globalInstance().start(worker)
     
@@ -913,8 +933,8 @@ class BrowserWindow(QMainWindow):
         self.tab_list[new_tab_index].urlChanged.connect(self.update_urlbar_content)
         self.tab_list[new_tab_index].iconChanged.connect(self.update_tab_info)
         self.tab_list[new_tab_index].page().profile().downloadRequested.connect(self.request_download)
-        self.tab_list[new_tab_index].signals.sum_selected_with_ai.connect(self.summarize_selected_with_ai)
-        self.tab_list[new_tab_index].signals.sum_page_with_ai.connect(self.summarize_current_page_ai)
+        self.tab_list[new_tab_index].sum_selected_with_ai.connect(self.summarize_selected_with_ai)
+        self.tab_list[new_tab_index].sum_page_with_ai.connect(self.summarize_current_page_ai)
 
         self.web_tabs.addTab(self.tab_list[new_tab_index], None)
         self.web_tabs.setCurrentIndex(new_tab_index)
@@ -1040,14 +1060,8 @@ class BrowserWindow(QMainWindow):
         self.zoom_factor_label.setText(zoom_string)
     
     # Theme specific functions
-    def get_cur_theme_dark_light(self):
-        if current_settings["theme"] != "Automatic":
-            return current_settings["theme"].lower()
-        else:
-            return "dark" if darkdetect.isDark() else "light"
-    
     def get_contrast_color_from_theme(self):
-        if self.get_cur_theme_dark_light() == "light":
+        if theme_manager.get_plain_theme() == "light":
             return "black"
         else:
             return "white"
@@ -1055,10 +1069,18 @@ class BrowserWindow(QMainWindow):
     def update_icon_colors(self):
         icon_color = self.get_contrast_color_from_theme()
 
+        self.ai_sidebar_btn.setIcon(qta.icon("msc.layout-sidebar-left", color=icon_color))
         self.prev_page_btn.setIcon(qta.icon("fa6s.arrow-left", color=icon_color))
         self.next_page_btn.setIcon(qta.icon("fa6s.arrow-right", color=icon_color))
-        self.reload_page_btn.setIcon(qta.icon("fa6s.arrow-rotate-right", color=icon_color))
+
+        if self.web_tabs.currentWidget().page_is_loading:
+            self.reload_page_btn.setIcon(qta.icon("ei.remove"))
+        else:
+            self.reload_page_btn.setIcon(qta.icon("fa6s.arrow-rotate-right"))
+        
         self.load_btn.setIcon(qta.icon("mdi.arrow-right-bold-box", color=icon_color))
+        self.add_tab_btn.setIcon(qta.icon("fa6s.plus", color=icon_color))
+        self.ai_summarize_btn.setIcon(qta.icon("ph.sparkle-fill", color=icon_color))
         self.add_to_bookmarks_btn.setIcon(qta.icon("fa5s.bookmark", color=icon_color))
         self.settings_btn.setIcon(qta.icon("fa5s.cog", color=icon_color))
 
@@ -1183,7 +1205,7 @@ class BrowserWindow(QMainWindow):
         display_settings.setLayout(display_settings_layout)
 
         theme_combobox = QComboBox()
-        theme_combobox.addItems(["Light", "Dark", "Automatic"])
+        theme_combobox.addItems(["Light", "Dark", "Automatic", "Legacy"])
         theme_combobox.setCurrentText(current_settings["theme"])
         display_settings_layout.addRow("Theme: ", theme_combobox)
 
@@ -1227,20 +1249,27 @@ class BrowserWindow(QMainWindow):
         ai_settings_layout = QFormLayout()
         ai_settings.setLayout(ai_settings_layout)
 
-        raw_models = ollama.list()
-        ollama_model_names = [m.model for m in raw_models.models]
-        sum_model_installed = SUM_AI_MODEL["name"] in ollama_model_names
-
         install_model_btn = QPushButton()
 
-        if not sum_model_installed:
-            install_model_btn.setText(f"Install ({SUM_AI_MODEL["size"]})")
-            install_model_btn.setIcon(qta.icon("fa6s.download", color=self.get_contrast_color_from_theme()))
-        else:
-            install_model_btn.setText("Model Installed")
-            install_model_btn.setIcon(qta.icon("fa6s.check", color=self.get_contrast_color_from_theme()))
+        try:
+            raw_models = ollama.list()
+            ollama_model_names = [m.model for m in raw_models.models]
+            sum_model_installed = SUM_AI_MODEL["name"] in ollama_model_names
 
-        install_model_btn.setEnabled(not sum_model_installed)
+            if not sum_model_installed:
+                install_model_btn.setText(f"Install ({SUM_AI_MODEL["size"]})")
+                install_model_btn.setIcon(qta.icon("fa6s.download", color=self.get_contrast_color_from_theme()))
+            else:
+                install_model_btn.setText("Model Installed")
+                install_model_btn.setIcon(qta.icon("fa6s.check", color=self.get_contrast_color_from_theme()))
+            
+            install_model_btn.setEnabled(not sum_model_installed)
+
+        except Exception:
+            install_model_btn.setText("Ollama not running")
+            install_model_btn.setIcon(qta.icon("ei.remove", color=self.get_contrast_color_from_theme()))
+            install_model_btn.setEnabled(False)
+
         install_model_btn.setFixedWidth(200)
         install_model_btn.clicked.connect(lambda: self.start_model_installation(install_model_btn))
         ai_settings_layout.addRow("Install AI Page Summarization Model: ", install_model_btn)
@@ -1280,13 +1309,7 @@ class BrowserWindow(QMainWindow):
             summarize_ai_enabled = ai_checkbox.isChecked()
 
             # Update settings in browser
-            if theme == "Light":
-                app.setStyleSheet(qdarktheme.load_stylesheet("light"))
-            elif theme == "Dark":
-                app.setStyleSheet(qdarktheme.load_stylesheet("dark"))
-            else:
-                system_theme = "Dark" if darkdetect.isDark() else "Light"
-                app.setStyleSheet(qdarktheme.load_stylesheet(system_theme.lower()))
+            theme_manager.load_theme(theme)
 
             self.bottom_bar.setVisible(bottom_bar_visible)
             self.load_btn.setVisible(go_button_visible)
@@ -1329,7 +1352,7 @@ class BrowserWindow(QMainWindow):
 
         self.threadpool = QThreadPool()
         worker = InstallWorker(SUM_AI_MODEL["name"])
-        worker.signals.installation_complete.connect(lambda: self.model_installation_complete(install_button))
+        worker.installation_complete.connect(lambda: self.model_installation_complete(install_button))
         self.threadpool.start(worker)
     
     def model_installation_complete(self, install_button):
@@ -1388,11 +1411,7 @@ if __name__ == "__main__":
     app.setOrganizationName("Silk Project")
 
     # Load theme
-    if current_settings["theme"] and current_settings["theme"] != "Automatic":
-        app.setStyleSheet(qdarktheme.load_stylesheet(current_settings["theme"].lower()))
-    else:
-        system_theme = "Dark" if darkdetect.isDark() else "Light"
-        app.setStyleSheet(qdarktheme.load_stylesheet(system_theme.lower()))
+    theme_manager = ThemeManager(app, current_settings["theme"])
     
     app.setWindowIcon(QIcon(os.path.join(SCRIPT_DIR, "assets", "mizu.png")))
     app.setStyle("breeze")
