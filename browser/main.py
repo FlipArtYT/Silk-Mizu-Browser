@@ -1266,6 +1266,7 @@ class BrowserWindow(QMainWindow):
             install_model_btn.setEnabled(not sum_model_installed)
 
         except Exception:
+            sum_model_installed = False
             install_model_btn.setText("Ollama not running")
             install_model_btn.setIcon(qta.icon("ei.remove", color=self.get_contrast_color_from_theme()))
             install_model_btn.setEnabled(False)
