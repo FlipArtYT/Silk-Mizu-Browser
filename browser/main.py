@@ -32,7 +32,7 @@ from PyQt6.QtWidgets import (
     QMenu,
     QWidgetAction
 )
-from PyQt6.QtCore import Qt, QUrl, QSize, pyqtSlot, pyqtSignal, QThreadPool, QRunnable, QObject, QDir
+from PyQt6.QtCore import Qt, QUrl, QSize, pyqtSlot, pyqtSignal, QThreadPool, QRunnable, QObject, QDir, QTranslator, QLocale
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEngineDownloadRequest
 from PyQt6.QtGui import QPixmap, QAction, QKeySequence, QIcon
@@ -66,6 +66,7 @@ default_settings = {
     "bottom_bar_visible":False,
     "go_button_visible":False,
     "download_warnings":True,
+    "language":"English",
     "javascript_enabled":True,
     "default_font_size":16,
     "scrollbars_enabled":True,
@@ -632,84 +633,85 @@ class BrowserWindow(QMainWindow):
         # Add menu bar
         menu_bar = self.menuBar()
 
-        fileMenu = menu_bar.addMenu("&File")
-        editMenu = menu_bar.addMenu("&Edit")
-        viewMenu = menu_bar.addMenu("&View")
-        bookmarkMenu = menu_bar.addMenu("&Bookmarks")
-        self.aiMenu = menu_bar.addMenu("&AI Summarization")
-        helpMenu = menu_bar.addMenu("&Help")
+        fileMenu = menu_bar.addMenu(self.tr("&File"))
+        editMenu = menu_bar.addMenu(self.tr("&Edit"))
+        viewMenu = menu_bar.addMenu(self.tr("&View"))
+        bookmarkMenu = menu_bar.addMenu(self.tr("&Bookmarks"))
+        self.aiMenu = menu_bar.addMenu(self.tr("&AI Summarization"))
+        helpMenu = menu_bar.addMenu(self.tr("&Help"))
 
         self.aiMenu.setEnabled(current_settings["ai_summarization_enabled"])
 
         # File Menu
-        settingsAction = fileMenu.addAction("Program Settings")
+        settingsAction = fileMenu.addAction(self.tr("Program Settings"))
         settingsAction.triggered.connect(self.settings_dialog)
         settingsAction.setShortcut(QKeySequence("Ctrl + ,"))
         fileMenu.addAction(settingsAction)
 
-        exitAction = fileMenu.addAction("Quit")
+        exitAction = fileMenu.addAction(self.tr("Quit"))
         exitAction.triggered.connect(sys.exit)
         exitAction.setShortcut(QKeySequence("Ctrl + q"))
         fileMenu.addAction(exitAction)
 
         # Edit Menu
-        createNewTabAction = editMenu.addAction("New Tab")
+        createNewTabAction = editMenu.addAction(self.tr("New Tab"))
         createNewTabAction.triggered.connect(self.create_new_tab)
         createNewTabAction.setShortcut(QKeySequence("Ctrl + t"))
         editMenu.addAction(createNewTabAction)
 
-        backAction = editMenu.addAction("Back")
+        backAction = editMenu.addAction(self.tr("Back"))
         backAction.triggered.connect(self.request_back_page)
         backAction.setShortcut(QKeySequence("Alt + left"))
         editMenu.addAction(backAction)
 
-        nextAction = editMenu.addAction("Next")
+        nextAction = editMenu.addAction(self.tr("Next"))
         nextAction.triggered.connect(self.request_next_page)
         nextAction.setShortcut(QKeySequence("Alt + right"))
         editMenu.addAction(nextAction)
 
         # View Menu
-        scaleUpAction = viewMenu.addAction("Increase page zoom by 10%")
+        scaleUpAction = viewMenu.addAction(self.tr("Increase page zoom by 10%"))
         scaleUpAction.triggered.connect(self.request_scale_page_up)
         scaleUpAction.setShortcut(QKeySequence("Ctrl + +"))
         viewMenu.addAction(scaleUpAction)
 
-        scaleDownAction = viewMenu.addAction("Decrease page zoom by 10%")
+        scaleDownAction = viewMenu.addAction(self.tr("Decrease page zoom by 10%"))
         scaleDownAction.triggered.connect(self.request_scale_page_down)
         scaleDownAction.setShortcut(QKeySequence("Ctrl + -"))
         viewMenu.addAction(scaleDownAction)
 
-        scaleDefaultAction = viewMenu.addAction("Set page zoom to 100%")
+        scaleDefaultAction = viewMenu.addAction(self.tr("Set page zoom to 100%"))
         scaleDefaultAction.triggered.connect(self.request_scale_page_reset)
         viewMenu.addAction(scaleDefaultAction)
 
         # Bookmarks Menu
-        manageBookmarksAction = bookmarkMenu.addAction("Manage bookmarks")
+        manageBookmarksAction = bookmarkMenu.addAction(self.tr("Manage bookmarks"))
         manageBookmarksAction.triggered.connect(self.manage_bookmarks_dialog)
         manageBookmarksAction.setShortcut(QKeySequence("Ctrl + shift + o"))
         bookmarkMenu.addAction(manageBookmarksAction)
 
-        addPageToBookmarksAction = bookmarkMenu.addAction("Add current page to bookmarks")
+        addPageToBookmarksAction = bookmarkMenu.addAction(self.tr("Add current page to bookmarks"))
         addPageToBookmarksAction.triggered.connect(self.add_current_to_bookmarks_dialog)
         addPageToBookmarksAction.setShortcut(QKeySequence("Ctrl + d"))
         bookmarkMenu.addAction(addPageToBookmarksAction)
 
         # AI Summarization Menu
-        toggleAIsidebarAction = self.aiMenu.addAction("Toggle AI Summarization Sidebar")
+        toggleAIsidebarAction = self.aiMenu.addAction(self.tr("Toggle AI Summarization Sidebar"))
         toggleAIsidebarAction.triggered.connect(self.toggle_ai_sidebar)
         toggleAIsidebarAction.setShortcut(QKeySequence("Ctrl + b"))
         self.aiMenu.addAction(toggleAIsidebarAction)
-        aiSummarizationAction = self.aiMenu.addAction("Summarize current page with AI")
+
+        aiSummarizationAction = self.aiMenu.addAction(self.tr("Summarize current page with AI"))
         aiSummarizationAction.triggered.connect(self.summarize_current_page_ai)
         aiSummarizationAction.setShortcut(QKeySequence("Ctrl + m"))
         self.aiMenu.addAction(aiSummarizationAction)
 
         # Help Menu
-        documentationAction = QAction("Project Page", self)
+        documentationAction = QAction(self.tr("Project Page"), self)
         documentationAction.triggered.connect(lambda: self.create_new_tab("https://github.com/Silk-Project/Silk-Mizu-Browser/"))
         helpMenu.addAction(documentationAction)
 
-        aboutAction = helpMenu.addAction("About")
+        aboutAction = helpMenu.addAction(self.tr("About"))
         aboutAction.triggered.connect(self.about_dialog)
         helpMenu.addAction(aboutAction)
 
@@ -774,7 +776,7 @@ class BrowserWindow(QMainWindow):
         controls_layout.addWidget(self.url_bar)
 
         # Right: Everything else
-        self.load_btn = QPushButton("Go")
+        self.load_btn = QPushButton(self.tr("Go"))
         self.load_btn.setIcon(qta.icon("mdi.arrow-right-bold-box", color=icon_color))
         self.load_btn.setProperty("class", "navbtns")
         self.load_btn.setStyleSheet("padding: 8px;")
@@ -1177,7 +1179,7 @@ class BrowserWindow(QMainWindow):
         general_settings_layout = QFormLayout()
         general_settings.setLayout(general_settings_layout)
 
-        title_label = QLabel("Browser Settings")
+        title_label = QLabel(self.tr("Browser Settings"))
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setStyleSheet("font-size: 20px; font-weight: bold; padding-top: 20px; padding-bottom: 10px;")
         layout.addWidget(title_label, 0, 0)
@@ -1185,12 +1187,12 @@ class BrowserWindow(QMainWindow):
         start_page_type_group = QButtonGroup()
         start_page_type_group.setExclusive(True)
 
-        start_page_type_radio_button = QRadioButton("Silk Start (local)")
+        start_page_type_radio_button = QRadioButton(self.tr("Silk Start (local)"))
         start_page_type_radio_button.setChecked(current_settings["start_page_url"] == START_PAGE_PATH)
         start_page_type_radio_button.toggled.connect(lambda: self.toggle_url_edit(False, start_page_urledit))
         start_page_type_group.addButton(start_page_type_radio_button)
 
-        start_page_url_radio_button = QRadioButton("URL")
+        start_page_url_radio_button = QRadioButton(self.tr("URL"))
         start_page_url_radio_button.setChecked(current_settings["start_page_url"] != START_PAGE_PATH)
         start_page_url_radio_button.toggled.connect(lambda: self.toggle_url_edit(True, start_page_urledit))
         start_page_type_group.addButton(start_page_url_radio_button)
@@ -1198,18 +1200,18 @@ class BrowserWindow(QMainWindow):
         start_page_type_layout = QHBoxLayout()
         start_page_type_layout.addWidget(start_page_type_radio_button)
         start_page_type_layout.addWidget(start_page_url_radio_button)
-        general_settings_layout.addRow("Start page type: ", start_page_type_layout)
+        general_settings_layout.addRow(self.tr("Start page type: "), start_page_type_layout)
 
         start_page_urledit = QLineEdit()
         start_page_urledit.setText(current_settings["start_page_url"])
         start_page_urledit.setMinimumWidth(200)
         start_page_urledit.setEnabled(current_settings["start_page_url"] != START_PAGE_PATH)
-        general_settings_layout.addRow("Start page URL: ", start_page_urledit)
+        general_settings_layout.addRow(self.tr("Start page URL: "), start_page_urledit)
 
         search_engine_combobox = QComboBox()
         search_engine_combobox.addItems(["Google", "DuckDuckGo", "Brave", "Ecosia", "Yahoo"])
         search_engine_combobox.setCurrentText(current_settings["search_engine"])
-        general_settings_layout.addRow("Search engine: ", search_engine_combobox)
+        general_settings_layout.addRow(self.tr("Search engine: "), search_engine_combobox)
 
         # Display settings
         display_settings = QWidget()
@@ -1219,15 +1221,15 @@ class BrowserWindow(QMainWindow):
         theme_combobox = QComboBox()
         theme_combobox.addItems(["Light", "Dark", "Automatic", "Legacy"])
         theme_combobox.setCurrentText(current_settings["theme"])
-        display_settings_layout.addRow("Theme: ", theme_combobox)
+        display_settings_layout.addRow(self.tr("Theme: "), theme_combobox)
 
         bottom_bar_visability_checkbox = QCheckBox()
         bottom_bar_visability_checkbox.setChecked(current_settings["bottom_bar_visible"])
-        display_settings_layout.addRow("Show bottom bar: ", bottom_bar_visability_checkbox)
+        display_settings_layout.addRow(self.tr("Show bottom bar: "), bottom_bar_visability_checkbox)
         
         go_button_visibility_checkbox = QCheckBox()
         go_button_visibility_checkbox.setChecked(current_settings["go_button_visible"])
-        display_settings_layout.addRow("Show 'Go' button in URL bar: ", go_button_visibility_checkbox)
+        display_settings_layout.addRow(self.tr("Show 'Go' button in URL bar: "), go_button_visibility_checkbox)
 
         # Security settings
         security_settings = QWidget()
@@ -1236,7 +1238,17 @@ class BrowserWindow(QMainWindow):
 
         download_warnings_checkbox = QCheckBox()
         download_warnings_checkbox.setChecked(current_settings["download_warnings"])
-        security_settings_layout.addRow("Display warning when download is requested: ", download_warnings_checkbox)
+        security_settings_layout.addRow(self.tr("Display warning when download is requested: "), download_warnings_checkbox)
+
+        # Language Tab
+        language_settings = QWidget()
+        language_settings_layout = QFormLayout()
+        language_settings.setLayout(language_settings_layout)
+
+        language_select_combobox = QComboBox()
+        language_select_combobox.addItems(["English", "Deutsch"])
+        language_select_combobox.setCurrentText(current_settings["language"])
+        language_settings_layout.addRow(self.tr("Program Language: "), language_select_combobox)
 
         # Engine tab settings
         engine_settings = QWidget()
@@ -1246,15 +1258,15 @@ class BrowserWindow(QMainWindow):
         font_size_spinbox = QSpinBox()
         font_size_spinbox.setRange(10, 80)
         font_size_spinbox.setValue(current_settings["default_font_size"])
-        engine_settings_layout.addRow("Default font size: ", font_size_spinbox)
+        engine_settings_layout.addRow(self.tr("Default font size: "), font_size_spinbox)
 
         javascript_checkbox = QCheckBox()
         javascript_checkbox.setChecked(current_settings["javascript_enabled"])
-        engine_settings_layout.addRow("Javascript enabled: ", javascript_checkbox)
+        engine_settings_layout.addRow(self.tr("Javascript enabled: "), javascript_checkbox)
 
         scrollbars_enabled_checkbox = QCheckBox()
         scrollbars_enabled_checkbox.setChecked(current_settings["scrollbars_enabled"])
-        engine_settings_layout.addRow("Scrollbars enabled: ", scrollbars_enabled_checkbox)
+        engine_settings_layout.addRow(self.tr("Scrollbars enabled: "), scrollbars_enabled_checkbox)
 
         # AI tab settings
         ai_settings = QWidget()
@@ -1269,7 +1281,7 @@ class BrowserWindow(QMainWindow):
             sum_model_installed = SUM_AI_MODEL["name"] in ollama_model_names
 
             if not sum_model_installed:
-                install_model_btn.setText(f"Install ({SUM_AI_MODEL["size"]})")
+                install_model_btn.setText(f"{self.tr("Install")} ({SUM_AI_MODEL["size"]})")
                 install_model_btn.setIcon(qta.icon("fa6s.download", color=self.get_contrast_color_from_theme()))
             else:
                 install_model_btn.setText("Model Installed")
@@ -1279,7 +1291,7 @@ class BrowserWindow(QMainWindow):
 
         except Exception:
             sum_model_installed = False
-            install_model_btn.setText("Ollama not running")
+            install_model_btn.setText(self.tr("Ollama not running"))
             install_model_btn.setIcon(qta.icon("ei.remove", color=self.get_contrast_color_from_theme()))
             install_model_btn.setEnabled(False)
 
@@ -1293,11 +1305,12 @@ class BrowserWindow(QMainWindow):
         ai_settings_layout.addRow("Enable AI Page Summarization: ", ai_checkbox)
 
         # Add widgets to tab widget
-        tabs.addTab(general_settings, "General")
-        tabs.addTab(display_settings, "Display")
-        tabs.addTab(security_settings, "Security")
-        tabs.addTab(engine_settings, "Engine")
-        tabs.addTab(ai_settings, "AI Features")
+        tabs.addTab(general_settings, self.tr("General"))
+        tabs.addTab(display_settings, self.tr("Display"))
+        tabs.addTab(security_settings, self.tr("Security"))
+        tabs.addTab(language_settings, self.tr("Language"))
+        tabs.addTab(engine_settings, self.tr("Engine"))
+        tabs.addTab(ai_settings, self.tr("AI Features"))
 
         # Add Ok and Cancel buttons
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -1316,6 +1329,7 @@ class BrowserWindow(QMainWindow):
             go_button_visible = go_button_visibility_checkbox.isChecked()
             bottom_bar_visible = bottom_bar_visability_checkbox.isChecked()
             download_warnings = download_warnings_checkbox.isChecked()
+            language = language_select_combobox.currentText()
             javascript_enabled = javascript_checkbox.isChecked()
             default_font_size = font_size_spinbox.value()
             default_scrollbars_enabled = scrollbars_enabled_checkbox.isChecked()
@@ -1343,6 +1357,7 @@ class BrowserWindow(QMainWindow):
                 "bottom_bar_visible":bottom_bar_visible,
                 "go_button_visible":go_button_visible,
                 "download_warnings":download_warnings,
+                "language":language,
                 "javascript_enabled":javascript_enabled,
                 "default_font_size":default_font_size,
                 "scrollbars_enabled":default_scrollbars_enabled,
@@ -1424,6 +1439,17 @@ if __name__ == "__main__":
 
     # Load theme
     theme_manager = ThemeManager(app, current_settings["theme"])
+
+    # Load language
+    if current_settings["language"] != "English":
+        lang_path = os.path.join(SCRIPT_DIR, "i18n", f"{current_settings["language"]}.qm")
+
+        if os.path.exists(lang_path):
+            translator = QTranslator()
+            translator.load(lang_path)
+            app.installTranslator(translator)
+        else:
+            print(f"Language file {current_settings["language"]}.qm not found.")
     
     app.setWindowIcon(QIcon(LOGO_PATH))
     app.setStyle("breeze")
