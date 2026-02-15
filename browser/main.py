@@ -57,6 +57,14 @@ SEARCH_ENGINE_SEARCH_QUERIES = {
     "Ecosia":"https://www.ecosia.org/search?method=index&q=",
     "Yahoo":"https://search.yahoo.com/search?p="
 }
+NAME_TO_LANGUAGE = {
+    "English":"en_US",
+    "Deutsch":"de_DE"
+}
+LANGUAGE_TO_NAME = {
+    "en_US":"English",
+    "de_DE":"Deutsch"
+}
 
 current_settings = {}
 default_settings = {
@@ -66,7 +74,7 @@ default_settings = {
     "bottom_bar_visible":False,
     "go_button_visible":False,
     "download_warnings":True,
-    "language":"English",
+    "language":"en_US",
     "javascript_enabled":True,
     "default_font_size":16,
     "scrollbars_enabled":True,
@@ -522,7 +530,7 @@ class AI_Sidebar(QWidget):
 
         self.input_controls_layout = QHBoxLayout()
 
-        self.title_label = QLabel("AI Summary")
+        self.title_label = QLabel(self.tr("AI Summary"))
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.title_label.setStyleSheet("font-size: 18px; font-weight: bold; padding: 20px")
         self.layout.addWidget(self.title_label)
@@ -601,6 +609,12 @@ class AI_Sidebar(QWidget):
         
         with open(file_path, "w") as f:
             f.write(chat_content)
+    
+    def retranslate_ui(self):
+        self.title_label.setText(self.tr("AI Summary"))
+        self.output_textedit.setPlaceholderText(self.tr("Summarization output will appear here..."))
+        self.download_chat_btn.setText(self.tr("Download"))
+        self.clear_btn.setText(self.tr("Clear"))
 
 class BrowserWindow(QMainWindow):
     def __init__(self):
@@ -621,6 +635,10 @@ class BrowserWindow(QMainWindow):
         self.init_ai_sidebar()
         self.init_web_engine()
 
+        # Install translator
+        self.translator = QTranslator()
+        self.load_language(current_settings["language"])
+
         # Add main widget
         widget = QWidget()
         widget.setLayout(self.layout)
@@ -633,87 +651,87 @@ class BrowserWindow(QMainWindow):
         # Add menu bar
         menu_bar = self.menuBar()
 
-        fileMenu = menu_bar.addMenu(self.tr("&File"))
-        editMenu = menu_bar.addMenu(self.tr("&Edit"))
-        viewMenu = menu_bar.addMenu(self.tr("&View"))
-        bookmarkMenu = menu_bar.addMenu(self.tr("&Bookmarks"))
+        self.fileMenu = menu_bar.addMenu(self.tr("&File"))
+        self.editMenu = menu_bar.addMenu(self.tr("&Edit"))
+        self.viewMenu = menu_bar.addMenu(self.tr("&View"))
+        self.bookmarkMenu = menu_bar.addMenu(self.tr("&Bookmarks"))
         self.aiMenu = menu_bar.addMenu(self.tr("&AI Summarization"))
-        helpMenu = menu_bar.addMenu(self.tr("&Help"))
+        self.helpMenu = menu_bar.addMenu(self.tr("&Help"))
 
         self.aiMenu.setEnabled(current_settings["ai_summarization_enabled"])
 
         # File Menu
-        settingsAction = fileMenu.addAction(self.tr("Program Settings"))
-        settingsAction.triggered.connect(self.settings_dialog)
-        settingsAction.setShortcut(QKeySequence("Ctrl + ,"))
-        fileMenu.addAction(settingsAction)
+        self.settingsAction = QAction(self.tr("Program Settings"))
+        self.settingsAction.triggered.connect(self.settings_dialog)
+        self.settingsAction.setShortcut(QKeySequence("Ctrl + ,"))
+        self.fileMenu.addAction(self.settingsAction)
 
-        exitAction = fileMenu.addAction(self.tr("Quit"))
-        exitAction.triggered.connect(sys.exit)
-        exitAction.setShortcut(QKeySequence("Ctrl + q"))
-        fileMenu.addAction(exitAction)
+        self.exitAction = QAction(self.tr("Quit"), self)
+        self.exitAction.triggered.connect(sys.exit)
+        self.exitAction.setShortcut(QKeySequence("Ctrl + q"))
+        self.fileMenu.addAction(self.exitAction)
 
         # Edit Menu
-        createNewTabAction = editMenu.addAction(self.tr("New Tab"))
-        createNewTabAction.triggered.connect(self.create_new_tab)
-        createNewTabAction.setShortcut(QKeySequence("Ctrl + t"))
-        editMenu.addAction(createNewTabAction)
+        self.createNewTabAction = QAction(self.tr("New Tab"), self)
+        self.createNewTabAction.triggered.connect(self.create_new_tab)
+        self.createNewTabAction.setShortcut(QKeySequence("Ctrl + t"))
+        self.editMenu.addAction(self.createNewTabAction)
 
-        backAction = editMenu.addAction(self.tr("Back"))
-        backAction.triggered.connect(self.request_back_page)
-        backAction.setShortcut(QKeySequence("Alt + left"))
-        editMenu.addAction(backAction)
+        self.backAction = QAction(self.tr("Back"), self)
+        self.backAction.triggered.connect(self.request_back_page)
+        self.backAction.setShortcut(QKeySequence("Alt + left"))
+        self.editMenu.addAction(self.backAction)
 
-        nextAction = editMenu.addAction(self.tr("Next"))
-        nextAction.triggered.connect(self.request_next_page)
-        nextAction.setShortcut(QKeySequence("Alt + right"))
-        editMenu.addAction(nextAction)
+        self.nextAction = QAction(self.tr("Next"), self)
+        self.nextAction.triggered.connect(self.request_next_page)
+        self.nextAction.setShortcut(QKeySequence("Alt + right"))
+        self.editMenu.addAction(self.nextAction)
 
         # View Menu
-        scaleUpAction = viewMenu.addAction(self.tr("Increase page zoom by 10%"))
-        scaleUpAction.triggered.connect(self.request_scale_page_up)
-        scaleUpAction.setShortcut(QKeySequence("Ctrl + +"))
-        viewMenu.addAction(scaleUpAction)
+        self.scaleUpAction = QAction(self.tr("Increase page zoom by 10%"), self)
+        self.scaleUpAction.triggered.connect(self.request_scale_page_up)
+        self.scaleUpAction.setShortcut(QKeySequence("Ctrl + +"))
+        self.viewMenu.addAction(self.scaleUpAction)
 
-        scaleDownAction = viewMenu.addAction(self.tr("Decrease page zoom by 10%"))
-        scaleDownAction.triggered.connect(self.request_scale_page_down)
-        scaleDownAction.setShortcut(QKeySequence("Ctrl + -"))
-        viewMenu.addAction(scaleDownAction)
+        self.scaleDownAction = QAction(self.tr("Decrease page zoom by 10%"), self)
+        self.scaleDownAction.triggered.connect(self.request_scale_page_down)
+        self.scaleDownAction.setShortcut(QKeySequence("Ctrl + -"))
+        self.viewMenu.addAction(self.scaleDownAction)
 
-        scaleDefaultAction = viewMenu.addAction(self.tr("Set page zoom to 100%"))
-        scaleDefaultAction.triggered.connect(self.request_scale_page_reset)
-        viewMenu.addAction(scaleDefaultAction)
+        self.scaleDefaultAction = QAction(self.tr("Set page zoom to 100%"), self)
+        self.scaleDefaultAction.triggered.connect(self.request_scale_page_reset)
+        self.viewMenu.addAction(self.scaleDefaultAction)
 
         # Bookmarks Menu
-        manageBookmarksAction = bookmarkMenu.addAction(self.tr("Manage bookmarks"))
-        manageBookmarksAction.triggered.connect(self.manage_bookmarks_dialog)
-        manageBookmarksAction.setShortcut(QKeySequence("Ctrl + shift + o"))
-        bookmarkMenu.addAction(manageBookmarksAction)
+        self.manageBookmarksAction = QAction(self.tr("Manage bookmarks"), self)
+        self.manageBookmarksAction.triggered.connect(self.manage_bookmarks_dialog)
+        self.manageBookmarksAction.setShortcut(QKeySequence("Ctrl + shift + o"))
+        self.bookmarkMenu.addAction(self.manageBookmarksAction)
 
-        addPageToBookmarksAction = bookmarkMenu.addAction(self.tr("Add current page to bookmarks"))
-        addPageToBookmarksAction.triggered.connect(self.add_current_to_bookmarks_dialog)
-        addPageToBookmarksAction.setShortcut(QKeySequence("Ctrl + d"))
-        bookmarkMenu.addAction(addPageToBookmarksAction)
+        self.addPageToBookmarksAction = QAction(self.tr("Add current page to bookmarks"), self)
+        self.addPageToBookmarksAction.triggered.connect(self.add_current_to_bookmarks_dialog)
+        self.addPageToBookmarksAction.setShortcut(QKeySequence("Ctrl + d"))
+        self.bookmarkMenu.addAction(self.addPageToBookmarksAction)
 
         # AI Summarization Menu
-        toggleAIsidebarAction = self.aiMenu.addAction(self.tr("Toggle AI Summarization Sidebar"))
-        toggleAIsidebarAction.triggered.connect(self.toggle_ai_sidebar)
-        toggleAIsidebarAction.setShortcut(QKeySequence("Ctrl + b"))
-        self.aiMenu.addAction(toggleAIsidebarAction)
+        self.toggleAIsidebarAction = QAction(self.tr("Toggle AI Summarization Sidebar"), self)
+        self.toggleAIsidebarAction.triggered.connect(self.toggle_ai_sidebar)
+        self.toggleAIsidebarAction.setShortcut(QKeySequence("Ctrl + b"))
+        self.aiMenu.addAction(self.toggleAIsidebarAction)
 
-        aiSummarizationAction = self.aiMenu.addAction(self.tr("Summarize current page with AI"))
-        aiSummarizationAction.triggered.connect(self.summarize_current_page_ai)
-        aiSummarizationAction.setShortcut(QKeySequence("Ctrl + m"))
-        self.aiMenu.addAction(aiSummarizationAction)
+        self.aiSummarizationAction = QAction(self.tr("Summarize current page with AI"), self)
+        self.aiSummarizationAction.triggered.connect(self.summarize_current_page_ai)
+        self.aiSummarizationAction.setShortcut(QKeySequence("Ctrl + m"))
+        self.aiMenu.addAction(self.aiSummarizationAction)
 
         # Help Menu
-        documentationAction = QAction(self.tr("Project Page"), self)
-        documentationAction.triggered.connect(lambda: self.create_new_tab("https://github.com/Silk-Project/Silk-Mizu-Browser/"))
-        helpMenu.addAction(documentationAction)
+        self.documentationAction = QAction(self.tr("Project Page"), self)
+        self.documentationAction.triggered.connect(lambda: self.create_new_tab("https://github.com/Silk-Project/Silk-Mizu-Browser/"))
+        self.helpMenu.addAction(self.documentationAction)
 
-        aboutAction = helpMenu.addAction(self.tr("About"))
-        aboutAction.triggered.connect(self.about_dialog)
-        helpMenu.addAction(aboutAction)
+        self.aboutAction = QAction(self.tr("About"))
+        self.aboutAction.triggered.connect(self.about_dialog)
+        self.helpMenu.addAction(self.aboutAction)
 
     def init_control_ui(self):
         # Add main control layouts
@@ -848,6 +866,64 @@ class BrowserWindow(QMainWindow):
         self.scale_up_btn.clicked.connect(self.request_scale_page_up)
 
         bottom_bar_layout.addWidget(self.scale_up_btn)
+
+    # Translation system
+    def load_language(self, lang):
+        if lang in LANGUAGE_TO_NAME:
+            app.removeTranslator(self.translator)
+
+            if lang != "en_US":
+                lang_path = os.path.join(SCRIPT_DIR, "i18n", f"{lang}.qm")
+
+                if os.path.exists(lang_path):
+                    self.translator = QTranslator()
+                    self.translator.load(lang_path)
+                    app.installTranslator(self.translator)
+                
+                else:
+                    print(f"Language file at {lang_path} not found.")
+            
+            self.retranslate_ui()
+
+
+    def retranslate_ui(self):
+        # Menu bar
+        self.fileMenu.setTitle(self.tr("&File"))
+        self.editMenu.setTitle(self.tr("&Edit"))
+        self.viewMenu.setTitle(self.tr("&View"))
+        self.bookmarkMenu.setTitle(self.tr("&Bookmarks"))
+        self.aiMenu.setTitle(self.tr("&AI Summarization"))
+        self.helpMenu.setTitle(self.tr("&Help"))
+
+        # File Menu
+        self.settingsAction.setText(self.tr("Program Settings"))
+        self.exitAction.setText(self.tr("Quit"))
+        
+        # Edit Menu
+        self.createNewTabAction.setText(self.tr("New Tab"))
+        self.backAction.setText(self.tr("Back"))
+        self.nextAction.setText(self.tr("Next"))
+
+        # View menu
+        self.scaleUpAction.setText(self.tr("Increase page zoom by 10%"))
+        self.scaleDownAction.setText(self.tr("Decrease page zoom by 10%"))
+        self.scaleDefaultAction.setText(self.tr("Set page zoom to 100%"))
+
+        # Bookmarks menu
+        self.manageBookmarksAction.setText(self.tr("Manage bookmarks"))
+        self.addPageToBookmarksAction.setText(self.tr("Add current page to bookmarks"))
+
+        # AI Summarization menu
+        self.toggleAIsidebarAction.setText(self.tr("Toggle AI Summarization Sidebar"))
+        self.aiSummarizationAction.setText(self.tr("Summarize current page with AI"))
+
+        # Help Menu
+        self.documentationAction.setText(self.tr("Project Page"))
+        self.aboutAction.setText(self.tr("About"))
+
+        # Main UI
+        self.load_btn.setText(self.tr("Go"))
+        self.ai_sidebar.retranslate_ui()
 
     def init_bookmark_bar(self):
         # Bookmark bar
@@ -1246,8 +1322,12 @@ class BrowserWindow(QMainWindow):
         language_settings.setLayout(language_settings_layout)
 
         language_select_combobox = QComboBox()
-        language_select_combobox.addItems(["English", "Deutsch"])
-        language_select_combobox.setCurrentText(current_settings["language"])
+
+        for lan_name, lan_code in NAME_TO_LANGUAGE.items():
+            language_select_combobox.addItem(lan_name)
+        
+
+        language_select_combobox.setCurrentText(LANGUAGE_TO_NAME[current_settings["language"]])
         language_settings_layout.addRow(self.tr("Program Language: "), language_select_combobox)
 
         # Engine tab settings
@@ -1346,6 +1426,9 @@ class BrowserWindow(QMainWindow):
 
             if self.ai_sidebar.isVisible():
                 self.ai_sidebar.setVisible(summarize_ai_enabled)
+            
+            if language != current_settings["language"]:
+                self.load_language(NAME_TO_LANGUAGE[language])
 
             self.update_web_engine()
 
@@ -1357,7 +1440,7 @@ class BrowserWindow(QMainWindow):
                 "bottom_bar_visible":bottom_bar_visible,
                 "go_button_visible":go_button_visible,
                 "download_warnings":download_warnings,
-                "language":language,
+                "language":NAME_TO_LANGUAGE[language],
                 "javascript_enabled":javascript_enabled,
                 "default_font_size":default_font_size,
                 "scrollbars_enabled":default_scrollbars_enabled,
@@ -1439,17 +1522,6 @@ if __name__ == "__main__":
 
     # Load theme
     theme_manager = ThemeManager(app, current_settings["theme"])
-
-    # Load language
-    if current_settings["language"] != "English":
-        lang_path = os.path.join(SCRIPT_DIR, "i18n", f"{current_settings["language"]}.qm")
-
-        if os.path.exists(lang_path):
-            translator = QTranslator()
-            translator.load(lang_path)
-            app.installTranslator(translator)
-        else:
-            print(f"Language file {current_settings["language"]}.qm not found.")
     
     app.setWindowIcon(QIcon(LOGO_PATH))
     app.setStyle("breeze")
