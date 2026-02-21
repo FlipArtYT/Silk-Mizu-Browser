@@ -2,6 +2,9 @@
 [![Lint](https://github.com/Silk-Project/Silk-Mizu-Browser/actions/workflows/main.yml/badge.svg)](https://github.com/Silk-Project/Silk-Mizu-Browser/actions/workflows/main.yml)
 ![Static Badge](https://img.shields.io/badge/License-MIT-blue)
 ![Commit Activity](https://img.shields.io/github/commit-activity/m/Silk-Project/Silk-Mizu-Browser)
+![GitHub Issues](https://img.shields.io/github/issues-raw/Silk-Project/Silk-Mizu-Browser)
+![Static Badge](https://img.shields.io/badge/Python-3.14-e9f23d?logo=python&logoColor=white)
+![Static Badge](https://img.shields.io/badge/PyQt-6.9-41cd52?logo=Qt&labelColor=black)
 <br>
 Simple and lightweight PyQT6 browser for Silk and Linux / Windows / Mac computers. Made possible through the QWebEngineView Widget for rendering webpages. Mizu (水) translates to "water" in japanese, which makes sense because you are "surfing" the web.
 
