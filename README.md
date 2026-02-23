@@ -1,4 +1,11 @@
 # 🌊 Silk Mizu Browser
+[![Lint](https://github.com/Silk-Project/Silk-Mizu-Browser/actions/workflows/main.yml/badge.svg)](https://github.com/Silk-Project/Silk-Mizu-Browser/actions/workflows/main.yml)
+![Static Badge](https://img.shields.io/badge/License-MIT-blue)
+![Commit Activity](https://img.shields.io/github/commit-activity/m/Silk-Project/Silk-Mizu-Browser)
+![GitHub Issues](https://img.shields.io/github/issues-raw/Silk-Project/Silk-Mizu-Browser)
+![Static Badge](https://img.shields.io/badge/Python-3.14-e9f23d?logo=python&logoColor=white)
+![Static Badge](https://img.shields.io/badge/PyQt-6.9-41cd52?logo=Qt&labelColor=black)
+<br>
 Simple and lightweight PyQT6 browser for Silk and Linux / Windows / Mac computers. Made possible through the QWebEngineView Widget for rendering webpages. Mizu (水) translates to "water" in japanese, which makes sense because you are "surfing" the web.
 
 ![Browser Preview](/assets/preview.png)
@@ -41,11 +48,14 @@ To use this program, simply execute the main.py file directly via python3.
 python3 main.py
 ```
 ## 💻 To-do
-- [ ] improving website tab system and tab bar positioning at the top
+- [ ] Improve website tab system and tab bar positioning at the top
 - [x] "Explain selected text with AI" (partly)
 - [ ] Reader view
 - [ ] Better overview of current downloads so it can't infinitely stack up in the download menu
-- [ ] Custom theme editor
+- [x] Multi-language support
+- [ ] Custom extension store (for the browser itself)
+- [ ] Widgets (e. g. Notes and additional widgets from the store)
+- [ ] Custom theme editor (with theme import)
 
 ## 👥 Contributing
 Feel free to open issues and create pull requests.
