@@ -1,0 +1,3 @@
+.noborder {
+    border: none;
+}
