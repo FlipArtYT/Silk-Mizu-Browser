@@ -218,4 +218,6 @@ Downloads/
 
 # Test Scripts
 test_scripts/
-extensions/
+
+# TS
+ts/
