@@ -5,6 +5,8 @@ import re
 import copy
 import datetime
 from dataclasses import dataclass
+import importlib.util
+from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -130,6 +132,10 @@ else:
         json.dump(default_bookmarks, f, indent=4)
     current_bookmarks = default_bookmarks
 
+# Create extensions folder if it not already exists
+if not os.path.exists(EXTENSIONS_PATH):
+    os.makedirs(EXTENSIONS_PATH, exist_ok=True)
+
 # Load AI system prompt
 with open(AI_SYSPROMPT_PATH, 'r') as f:
     ai_system_prompt = f.read()
@@ -227,7 +233,7 @@ class ExtensionItemWidget(QFrame):
         # Icon (if available)
         self.extension_icon_path = os.path.join(EXTENSIONS_PATH, self.metadata.app_id, self.metadata.icon_path)
 
-        if os.path.exists(self.extension_icon_path):
+        if os.path.exists(self.extension_icon_path) and self.metadata.icon_path != "":
             icon_label = QLabel()
             icon_label.setStyleSheet("border: none")
             icon_pixmap = QPixmap(self.extension_icon_path)
@@ -274,17 +280,21 @@ class ExtensionItemWidget(QFrame):
     def show_extension_info(self):
         dlg = QDialog(self)
         dlg.setWindowTitle(f"{self.tr("About")} {self.metadata.name}")
-        dlg.setFixedSize(240, 325)
         dlg_layout = QVBoxLayout()
 
         dlg_layout.addStretch()
         
-        if os.path.exists(self.extension_icon_path):
+        if os.path.exists(self.extension_icon_path) and self.metadata.icon_path != "":
+            dlg.setFixedSize(240, 325)
+
             logoLabel = QLabel(self)
             logoLabel.setFixedSize(128, 128)
             logoLabel.setScaledContents(True)
             logoLabel.setPixmap(QPixmap(self.extension_icon_path))
             dlg_layout.addWidget(logoLabel, alignment=Qt.AlignmentFlag.AlignCenter)
+        
+        else:
+            dlg.setFixedSize(240, 240)
 
         about_title = QLabel(self.metadata.name)
         about_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -300,7 +310,8 @@ class ExtensionItemWidget(QFrame):
         about_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         dlg_layout.addWidget(about_label)
 
-        dlg_layout.addStretch()
+        if os.path.exists(self.extension_icon_path) and self.metadata.icon_path != "":
+            dlg_layout.addStretch()
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         button_box.setContentsMargins(0, 8, 0, 8)
@@ -420,10 +431,14 @@ class WebExtensionsDialog(QDialog):
             self.installed_order_btn.setEnabled(False)
             self.install_tab_sort_combobox.setEnabled(False)
 
+            self.installed_widgets_repeatable_layout.addStretch()
+
             info_label = QLabel(self.tr("No extensions found.\nWhy not try to install some?"))
             info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             info_label.setStyleSheet("color: grey;")
             self.installed_widgets_repeatable_layout.addWidget(info_label)
+
+            self.installed_widgets_repeatable_layout.addStretch()
 
             return
 
@@ -493,6 +508,107 @@ class WebExtensionsMenu(QMenu):
 
         self.addSeparator()
         self.addAction(manage_extensions_action)
+
+class Extension_Sidebar_Button(QPushButton):
+    def __init__(self, metadata: ExtensionMetadata, parent=None):
+        super().__init__(parent)
+        self.metadata = metadata
+
+        self.setFixedSize(35, 35)
+
+        # Icon (if available)
+        self.extension_icon_path = os.path.join(EXTENSIONS_PATH, self.metadata.app_id, self.metadata.icon_path)
+
+        if os.path.exists(self.extension_icon_path) and self.metadata.icon_path != "":     
+            self.setIcon(QIcon(self.extension_icon_path))
+        else:
+            self.setText(self.metadata.name[0])
+
+class Extension_Sidebar(QWidget):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setFixedWidth(50)
+        self.sidebar_layout = QHBoxLayout()
+        self.sidebar_layout.setContentsMargins(5, 5, 5, 5)
+        self.sidebar_layout.setSpacing(5)
+        self.showing_extension = False
+        self.extension_btns = {}
+
+        self.setLayout(self.sidebar_layout)
+
+        self.init_ui()
+        self.load_extensions()
+    
+    def init_ui(self):
+        self.extension_bar_layout = QVBoxLayout()
+        self.extension_content = QStackedWidget()
+        
+        self.extension_content.setObjectName("extension_content")
+        self.extension_content.hide()
+
+        self.sidebar_layout.addLayout(self.extension_bar_layout)
+        self.sidebar_layout.addWidget(self.extension_content)
+
+    def load_extensions(self):
+        self.clear_layout(self.extension_bar_layout)
+        
+        extension_manager.update_extension_list()
+        extensions = extension_manager.get_installed()
+
+        self.extension_bar_layout.addStretch()
+
+        # Extension content
+        for i, el in enumerate(extensions):
+            try:
+                spec = spec = importlib.util.spec_from_file_location(
+                        el.name, 
+                        os.path.join(EXTENSIONS_PATH, el.app_id, el.script_path)
+                    )
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                
+                plugin_class = getattr(module, "MainWidget")
+                plugin_instance = plugin_class()
+                
+                self.extension_content.addWidget(plugin_instance)
+
+                button = Extension_Sidebar_Button(el)
+                button.clicked.connect(lambda: self.toggle_extension(i))
+                self.extension_bar_layout.addWidget(button, alignment=Qt.AlignmentFlag.AlignHCenter)
+                
+            except Exception as e:
+                print(f"Error when trying to load {el.name}: {e}")
+
+        self.extension_bar_layout.addStretch()
+    
+    def toggle_extension(self, id):
+        if not self.showing_extension:
+            self.setFixedWidth(450)
+            self.extension_content.show()
+
+            if id >= 0:
+                self.extension_content.setCurrentIndex(id)
+        else:
+            self.setFixedWidth(50)
+            self.extension_content.hide()
+        
+        self.showing_extension = not self.showing_extension
+    
+    def get_contrast_color_from_theme(self):
+        return self.parent().get_contrast_color_from_theme()
+    
+    def retranslate_ui(self):
+        return "no"
+    
+    def clear_layout(self, layout):
+        if layout is not None:
+            while layout.count():
+                item = layout.takeAt(0)
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
+                else:
+                    self.clear_layout(item.layout())
 
 class BetterWebEngineSignals(QObject):
     sum_selected_with_ai = pyqtSignal(str)
@@ -937,64 +1053,6 @@ class AI_Extension(QWidget):
         self.output_textedit.setPlaceholderText(self.tr("Summarization output will appear here..."))
         self.download_chat_btn.setText(self.tr("Download"))
         self.clear_btn.setText(self.tr("Clear"))
-
-class Extension_Item(QPushButton):
-    def __init__(self, parent=False):
-        super().__init__(parent)
-
-
-class Extension_Sidebar(QWidget):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.setFixedWidth(50)
-        self.sidebar_layout = QHBoxLayout()
-        self.sidebar_layout.setContentsMargins(5, 5, 5, 5)
-        self.sidebar_layout.setSpacing(5)
-        showing_extension = False
-        self.extension_btns = {}
-
-        self.setLayout(self.sidebar_layout)
-
-        self.init_ui()
-        self.load_extensions()
-    
-    def init_ui(self):
-        self.extension_bar_layout = QVBoxLayout()
-        self.extension_content = QStackedWidget()
-
-        self.extension_content.hide()
-
-        self.sidebar_layout.addLayout(self.extension_bar_layout)
-        self.sidebar_layout.addWidget(self.extension_content)
-
-    def load_extensions(self):
-        self.clear_layout(self.extension_bar_layout)
-        
-        extension_manager.update_extension_list()
-        extensions = extension_manager.get_installed()
-
-        self.extension_bar_layout.addStretch()
-
-        self.extension_bar_layout.addStretch()
-    
-    def toggle_extension(self, id):
-        print(id)
-    
-    def get_contrast_color_from_theme(self):
-        return self.parent().get_contrast_color_from_theme()
-    
-    def retranslate_ui(self):
-        return "no"
-    
-    def clear_layout(self, layout):
-        if layout is not None:
-            while layout.count():
-                item = layout.takeAt(0)
-                widget = item.widget()
-                if widget is not None:
-                    widget.deleteLater()
-                else:
-                    self.clear_layout(item.layout())
 
 class BrowserWindow(QMainWindow):
     def __init__(self):
