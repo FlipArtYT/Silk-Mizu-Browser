@@ -38,7 +38,7 @@ from PyQt6.QtWidgets import (
     QStackedWidget,
     QFrame
 )
-from PyQt6.QtCore import Qt, QUrl, QSize, pyqtSlot, pyqtSignal, QThreadPool, QRunnable, QObject, QDir, QTranslator, QLocale
+from PyQt6.QtCore import Qt, QUrl, QSize, pyqtSlot, pyqtSignal, QThreadPool, QRunnable, QObject, QTranslator
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEngineDownloadRequest
 from PyQt6.QtGui import QPixmap, QAction, QKeySequence, QIcon
@@ -573,7 +573,7 @@ class Extension_Sidebar(QWidget):
                 self.extension_content.addWidget(plugin_instance)
 
                 button = Extension_Sidebar_Button(el)
-                button.clicked.connect(lambda: self.toggle_extension(i))
+                button.clicked.connect(lambda _, i=i: self.toggle_extension(i))
                 self.extension_bar_layout.addWidget(button, alignment=Qt.AlignmentFlag.AlignHCenter)
                 
             except Exception as e:
@@ -582,23 +582,24 @@ class Extension_Sidebar(QWidget):
         self.extension_bar_layout.addStretch()
     
     def toggle_extension(self, id):
-        if not self.showing_extension:
+        if id != self.extension_content.currentIndex():
+            self.extension_content.setCurrentIndex(id)
+
+            if not self.showing_extension:
+                self.showing_extension = True
+        else:
+            self.showing_extension = not self.showing_extension
+
+        if self.showing_extension:
             self.setFixedWidth(450)
             self.extension_content.show()
 
-            if id >= 0:
-                self.extension_content.setCurrentIndex(id)
         else:
             self.setFixedWidth(50)
             self.extension_content.hide()
-        
-        self.showing_extension = not self.showing_extension
     
     def get_contrast_color_from_theme(self):
         return self.parent().get_contrast_color_from_theme()
-    
-    def retranslate_ui(self):
-        return "no"
     
     def clear_layout(self, layout):
         if layout is not None:
@@ -1362,7 +1363,6 @@ class BrowserWindow(QMainWindow):
 
         # Main UI
         self.load_btn.setText(self.tr("Go"))
-        self.Extension_Sidebar.retranslate_ui()
 
     def init_bookmark_bar(self):
         # Bookmark bar
